@@ -2,7 +2,9 @@
 
 A Chrome extension for managing aria2 downloads with a sleek dot-matrix aesthetic.
 
-![Aria2 Dashboard](Screenshot1.png,Screenshot1.png)
+![Aria2 Dashboard Popup](Screenshot1.png)
+
+![Aria2 Dashboard Full](Screenshot2.png)
 
 ## Features
 

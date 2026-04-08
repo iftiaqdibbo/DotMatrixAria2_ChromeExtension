@@ -65,11 +65,18 @@ Requires Inkscape or ImageMagick.
 ### Download Hijacking
 Enable "Hijack Downloads" to intercept browser downloads and send them to aria2 automatically.
 
+**How it works:**
+- Content script injects into pages to capture download clicks
+- Hooks fetch/XHR to intercept dynamic download URLs
+- Passes cookies, referrer, and User-Agent to aria2
+- Works with JavaScript-protected sites (Cloudflare, etc.)
+
 ## File Structure
 
 ```
 ├── manifest.json      # Extension manifest
 ├── background.js      # Service worker for download interception
+├── content.js         # Content script for page integration
 ├── popup.html/js      # Popup panel
 ├── options.html/js    # Options page
 ├── full.html/js       # Full dashboard
@@ -84,11 +91,26 @@ Enable "Hijack Downloads" to intercept browser downloads and send them to aria2 
 - `contextMenus`: Right-click download option
 - `notifications`: Download status notifications
 - `downloads`: Download interception
+- `cookies`: Access cookies for authenticated downloads
 - `host_permissions`: Connect to aria2 RPC
+- `<all_urls>`: Content script injection for download capture
 
 ## License
 
 MIT
+
+## Troubleshooting
+
+### Downloads failing on certain sites
+The extension uses a content script to capture download URLs from the page's JavaScript context. If a site still fails:
+- The site may use complex obfuscation
+- Try using the context menu (right-click → "Download with aria2")
+- Some sites require browser cookies which are passed automatically
+
+### aria2 not connecting
+- Ensure aria2 is running with RPC enabled: `aria2c --enable-rpc`
+- Check the RPC URL in extension options (default: `http://localhost:6800/jsonrpc`)
+- Verify firewall settings allow connections to the RPC port
 
 ## Credits
 

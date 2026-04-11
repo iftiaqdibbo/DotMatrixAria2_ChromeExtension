@@ -1,7 +1,5 @@
-// API Layer - Uses chrome.storage.local for all settings
 const DEFAULT_RPC_URL = 'http://localhost:6800/jsonrpc';
 
-// Get config from chrome.storage.local
 async function getConfig() {
   return new Promise((resolve) => {
     chrome.storage.local.get([
@@ -18,7 +16,6 @@ async function getConfig() {
   });
 }
 
-// Save config to chrome.storage.local
 function saveConfig(config) {
   return new Promise((resolve) => {
     chrome.storage.local.set({
@@ -31,7 +28,7 @@ function saveConfig(config) {
 async function callAria2(method, params = []) {
   const config = await getConfig();
   const secretToken = config.secret ? [`token:${config.secret}`] : [];
-  
+
   const body = {
     jsonrpc: '2.0',
     id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
@@ -100,7 +97,6 @@ async function removeDownload(gid) {
   return callAria2('aria2.removeDownloadResult', [gid]);
 }
 
-// Full Dashboard App
 function FullApp() {
   let state = {
     activeTab: 'active',
@@ -116,69 +112,72 @@ function FullApp() {
   const container = document.createElement('div');
   container.className = 'app full-mode';
 
-  async function render() {
-    container.innerHTML = '';
-    
-    // Load config if not loaded
-    if (!state.config) {
-      state.config = await getConfig();
-    }
-    
-    const header = document.createElement('header');
-    header.className = 'header';
-    header.innerHTML = `
-      <div class="logo-container">
-        <div class="logo">
-          <svg viewBox="0 0 42 42" width="32" height="32">
-            <rect x="6" y="6" width="4" height="4" fill="currentColor"/>
-            <rect x="12" y="6" width="4" height="4" fill="currentColor"/>
-            <rect x="18" y="6" width="4" height="4" fill="currentColor"/>
-            <rect x="6" y="12" width="4" height="4" fill="currentColor"/>
-            <rect x="18" y="12" width="4" height="4" fill="currentColor"/>
-            <rect x="24" y="12" width="4" height="4" fill="currentColor"/>
-            <rect x="30" y="12" width="4" height="4" fill="currentColor"/>
-            <rect x="6" y="18" width="4" height="4" fill="currentColor"/>
-            <rect x="12" y="18" width="4" height="4" fill="currentColor"/>
-            <rect x="18" y="18" width="4" height="4" fill="currentColor"/>
-            <rect x="24" y="18" width="4" height="4" fill="currentColor"/>
-            <rect x="30" y="18" width="4" height="4" fill="currentColor"/>
-            <rect x="6" y="24" width="4" height="4" fill="currentColor"/>
-            <rect x="18" y="24" width="4" height="4" fill="currentColor"/>
-            <rect x="30" y="24" width="4" height="4" fill="currentColor"/>
-            <rect x="6" y="30" width="4" height="4" fill="currentColor"/>
-            <rect x="12" y="30" width="4" height="4" fill="currentColor"/>
-            <rect x="18" y="30" width="4" height="4" fill="currentColor"/>
-            <rect x="24" y="30" width="4" height="4" fill="currentColor"/>
-            <rect x="30" y="30" width="4" height="4" fill="currentColor"/>
-          </svg>
-        </div>
-        <div>
-          <h1 class="title">aria2</h1>
-          <span class="subtitle">dashboard</span>
-        </div>
+  const header = document.createElement('header');
+  header.className = 'header';
+  header.innerHTML = `
+    <div class="logo-container">
+      <div class="logo">
+        <svg viewBox="0 0 42 42" width="32" height="32">
+          <rect x="6" y="6" width="4" height="4" fill="currentColor"/>
+          <rect x="12" y="6" width="4" height="4" fill="currentColor"/>
+          <rect x="18" y="6" width="4" height="4" fill="currentColor"/>
+          <rect x="6" y="12" width="4" height="4" fill="currentColor"/>
+          <rect x="18" y="12" width="4" height="4" fill="currentColor"/>
+          <rect x="24" y="12" width="4" height="4" fill="currentColor"/>
+          <rect x="30" y="12" width="4" height="4" fill="currentColor"/>
+          <rect x="6" y="18" width="4" height="4" fill="currentColor"/>
+          <rect x="12" y="18" width="4" height="4" fill="currentColor"/>
+          <rect x="18" y="18" width="4" height="4" fill="currentColor"/>
+          <rect x="24" y="18" width="4" height="4" fill="currentColor"/>
+          <rect x="30" y="18" width="4" height="4" fill="currentColor"/>
+          <rect x="6" y="24" width="4" height="4" fill="currentColor"/>
+          <rect x="18" y="24" width="4" height="4" fill="currentColor"/>
+          <rect x="30" y="24" width="4" height="4" fill="currentColor"/>
+          <rect x="6" y="30" width="4" height="4" fill="currentColor"/>
+          <rect x="12" y="30" width="4" height="4" fill="currentColor"/>
+          <rect x="18" y="30" width="4" height="4" fill="currentColor"/>
+          <rect x="24" y="30" width="4" height="4" fill="currentColor"/>
+          <rect x="30" y="30" width="4" height="4" fill="currentColor"/>
+        </svg>
       </div>
-      <div class="header-actions">
-        <button class="btn-icon" id="btn-settings" title="Settings">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-        </button>
-        <button class="btn-icon" id="btn-add" title="Add Download">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-        </button>
-        <button class="btn-icon" id="btn-refresh" title="Refresh">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="23 4 23 10 17 10"/>
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-          </svg>
-        </button>
+      <div>
+        <h1 class="title">aria2</h1>
+        <span class="subtitle">dashboard</span>
       </div>
-    `;
-    container.appendChild(header);
+    </div>
+    <div class="header-actions">
+      <button class="btn-icon" id="btn-settings" title="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="btn-add" title="Add Download">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="btn-refresh" title="Refresh">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      </button>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'full-body';
+  container.appendChild(bodyEl);
+
+  const footer = document.createElement('footer');
+  footer.innerHTML = `<p class="footer-text">aria2 dashboard</p>`;
+  container.appendChild(footer);
+
+  function renderBody() {
+    bodyEl.innerHTML = '';
 
     if (state.showSettings) {
       const settingsPanel = document.createElement('div');
@@ -202,10 +201,12 @@ function FullApp() {
         </div>
         <div id="test-result"></div>
       `;
-      container.appendChild(settingsPanel);
+      bodyEl.appendChild(settingsPanel);
+      attachSettingsListeners();
+      return;
     }
 
-    if (state.loading) {
+    if (state.loading && !state.globalStat) {
       const loading = document.createElement('div');
       loading.className = 'loading-state';
       loading.innerHTML = `
@@ -214,115 +215,123 @@ function FullApp() {
         </div>
         <span>connecting to aria2...</span>
       `;
-      container.appendChild(loading);
-    } else if (state.error) {
+      bodyEl.appendChild(loading);
+      return;
+    }
+
+    if (state.error && !state.globalStat) {
       const errorDiv = document.createElement('div');
       errorDiv.className = 'error';
       errorDiv.textContent = state.error;
-      container.appendChild(errorDiv);
-    } else {
-      const dashboard = document.createElement('div');
-      dashboard.className = 'dashboard-layout';
-      
-      const sidebar = document.createElement('div');
-      sidebar.className = 'sidebar';
-      sidebar.innerHTML = `
-        <div class="status-card">
-          <div class="status-card-inner">
-            <div class="status-dot status-dot--active"></div>
-            <div>
-              <h2>active</h2>
-              <p>${state.globalStat?.numActive || 0}</p>
-            </div>
-          </div>
-        </div>
-        <div class="status-card">
-          <div class="status-card-inner">
-            <div class="status-dot status-dot--waiting"></div>
-            <div>
-              <h2>waiting</h2>
-              <p>${state.globalStat?.numWaiting || 0}</p>
-            </div>
-          </div>
-        </div>
-        <div class="status-card">
-          <div class="status-card-inner">
-            <div class="status-dot status-dot--stopped"></div>
-            <div>
-              <h2>stopped</h2>
-              <p>${state.globalStat?.numStopped || 0}</p>
-            </div>
-          </div>
-        </div>
-        <div class="status-card">
-          <div class="status-card-inner">
-            <div class="status-dot status-dot--speed"></div>
-            <div>
-              <h2>download</h2>
-              <p class="speed-value">${formatSpeed(state.globalStat?.downloadSpeed)}</p>
-            </div>
-          </div>
-        </div>
-      `;
-      
-      const mainContent = document.createElement('div');
-      mainContent.className = 'main-content';
-      
-      const tabs = document.createElement('div');
-      tabs.className = 'tabs';
-      ['active', 'waiting', 'stopped'].forEach(tab => {
-        const count = state.downloads[tab]?.length || 0;
-        const isActive = state.activeTab === tab;
-        const tabBtn = document.createElement('button');
-        tabBtn.className = `tab ${isActive ? 'tab--active' : ''}`;
-        tabBtn.innerHTML = `
-          <span class="tab-dot tab-dot--${tab}"></span>
-          ${tab}
-          <span class="tab-count">${count}</span>
-        `;
-        tabBtn.addEventListener('click', () => {
-          state.activeTab = tab;
-          render();
-        });
-        tabs.appendChild(tabBtn);
-      });
-      
-      const downloadList = document.createElement('div');
-      downloadList.className = 'download-list';
-      
-      const downloads = state.downloads[state.activeTab] || [];
-      if (downloads.length === 0) {
-        downloadList.innerHTML = `<div class="empty-state">no ${state.activeTab} downloads</div>`;
-      } else {
-        downloads.forEach(download => {
-          const row = createDownloadRow(download);
-          downloadList.appendChild(row);
-        });
-      }
-      
-      mainContent.appendChild(tabs);
-      mainContent.appendChild(downloadList);
-      
-      dashboard.appendChild(sidebar);
-      dashboard.appendChild(mainContent);
-      container.appendChild(dashboard);
+      bodyEl.appendChild(errorDiv);
+      return;
     }
 
-    const footer = document.createElement('footer');
-    footer.innerHTML = `<p class="footer-text">aria2 dashboard</p>`;
-    container.appendChild(footer);
+    const dashboard = document.createElement('div');
+    dashboard.className = 'dashboard-layout';
 
-    attachEventListeners();
+    const sidebar = document.createElement('div');
+    sidebar.className = 'sidebar';
+    sidebar.innerHTML = `
+      <div class="status-card">
+        <div class="status-card-inner">
+          <div class="status-dot status-dot--active"></div>
+          <div>
+            <h2>active</h2>
+            <p>${state.globalStat?.numActive || 0}</p>
+          </div>
+        </div>
+      </div>
+      <div class="status-card">
+        <div class="status-card-inner">
+          <div class="status-dot status-dot--waiting"></div>
+          <div>
+            <h2>waiting</h2>
+            <p>${state.globalStat?.numWaiting || 0}</p>
+          </div>
+        </div>
+      </div>
+      <div class="status-card">
+        <div class="status-card-inner">
+          <div class="status-dot status-dot--stopped"></div>
+          <div>
+            <h2>stopped</h2>
+            <p>${state.globalStat?.numStopped || 0}</p>
+          </div>
+        </div>
+      </div>
+      <div class="status-card">
+        <div class="status-card-inner">
+          <div class="status-dot status-dot--speed"></div>
+          <div>
+            <h2>download</h2>
+            <p class="speed-value">${formatSpeed(state.globalStat?.downloadSpeed)}</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const mainContent = document.createElement('div');
+    mainContent.className = 'main-content';
+
+    const tabs = document.createElement('div');
+    tabs.className = 'tabs';
+    ['active', 'waiting', 'stopped'].forEach(tab => {
+      const count = state.downloads[tab]?.length || 0;
+      const isActive = state.activeTab === tab;
+      const tabBtn = document.createElement('button');
+      tabBtn.className = `tab ${isActive ? 'tab--active' : ''}`;
+      tabBtn.innerHTML = `
+        <span class="tab-dot tab-dot--${tab}"></span>
+        ${tab}
+        <span class="tab-count">${count}</span>
+      `;
+      tabBtn.addEventListener('click', () => {
+        state.activeTab = tab;
+        renderBody();
+      });
+      tabs.appendChild(tabBtn);
+    });
+
+    const downloadList = document.createElement('div');
+    downloadList.className = 'download-list';
+
+    const downloads = state.downloads[state.activeTab] || [];
+    if (downloads.length === 0) {
+      downloadList.innerHTML = `<div class="empty-state">no ${state.activeTab} downloads</div>`;
+    } else {
+      downloads.forEach(download => {
+        downloadList.appendChild(createDownloadRow(download));
+      });
+    }
+
+    mainContent.appendChild(tabs);
+    mainContent.appendChild(downloadList);
+
+    dashboard.appendChild(sidebar);
+    dashboard.appendChild(mainContent);
+    bodyEl.appendChild(dashboard);
   }
 
   function createDownloadRow(download) {
     const total = parseInt(download.totalLength) || 1;
     const completed = parseInt(download.completedLength);
     const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-        const speed = parseInt(download.downloadSpeed) || 0;
-    
+    const speed = parseInt(download.downloadSpeed) || 0;
+
     const row = document.createElement('div');
     row.className = 'download-row';
+    row.dataset.gid = download.gid;
+
+    const progressBar = document.createElement('div');
+    progressBar.className = 'dot-progress';
+    const dotCount = 20;
+    for (let i = 0; i < dotCount; i++) {
+      const dot = document.createElement('span');
+      dot.className = `dot ${i < Math.round((percent / 100) * dotCount) ? 'dot--filled' : ''}`;
+      progressBar.appendChild(dot);
+    }
+
     row.innerHTML = `
       <div class="download-row-header">
         <span class="download-title">${escapeHtml(getFileName(download))}</span>
@@ -333,69 +342,64 @@ function FullApp() {
         <span>speed: <strong>${formatSpeed(speed)}</strong></span>
         <span>connections: <strong>${download.connections}</strong></span>
       </div>
-      <div class="dot-progress">
-        ${Array(20).fill(0).map((_, i) => {
-          const filled = i < Math.round((percent / 100) * 20);
-          return `<span class="dot ${filled ? 'dot--filled' : ''}"></span>`;
-        }).join('')}
-      </div>
-      <div class="download-actions">
-        ${download.status === 'active' ? `
-          <button class="btn btn-action btn-pause" data-gid="${download.gid}">
-            <span class="btn-dot-indicator btn-dot-pause"></span>
-            pause
-          </button>
-        ` : ''}
-        ${download.status === 'paused' ? `
-          <button class="btn btn-action btn-resume" data-gid="${download.gid}">
-            <span class="btn-dot-indicator btn-dot-resume"></span>
-            resume
-          </button>
-        ` : ''}
-        ${download.status === 'active' || download.status === 'waiting' || download.status === 'paused' ? `
-          <button class="btn btn-action btn-stop" data-gid="${download.gid}">
-            <span class="btn-dot-indicator btn-dot-stop"></span>
-            stop
-          </button>
-        ` : ''}
-        ${download.status === 'complete' || download.status === 'error' || download.status === 'removed' ? `
-          <button class="btn btn-action btn-delete" data-gid="${download.gid}">
-            <span class="btn-dot-indicator btn-dot-delete"></span>
-            remove
-          </button>
-        ` : ''}
-      </div>
     `;
-    
-    row.querySelectorAll('button').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const gid = e.currentTarget.dataset.gid;
-        try {
-          if (btn.classList.contains('btn-pause')) await pauseDownload(gid);
-          else if (btn.classList.contains('btn-resume')) await unpauseDownload(gid);
-          else if (btn.classList.contains('btn-stop')) await stopDownload(gid);
-          else if (btn.classList.contains('btn-delete')) await removeDownload(gid);
-          await loadData();
-        } catch (err) {
-          console.error('Action failed:', err);
-        }
-      });
-    });
-    
+
+    const progressWrapper = document.createElement('div');
+    progressWrapper.className = 'download-progress-full';
+
+    const percentText = document.createElement('span');
+    percentText.className = 'progress-text';
+    percentText.textContent = `${percent}%`;
+
+    progressWrapper.appendChild(progressBar);
+    progressWrapper.appendChild(percentText);
+    row.appendChild(progressWrapper);
+
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'download-actions';
+
+    if (download.status === 'active') {
+      actionsDiv.appendChild(createActionButton('btn-pause', download.gid, 'pause', 'btn-dot-pause'));
+    }
+    if (download.status === 'paused') {
+      actionsDiv.appendChild(createActionButton('btn-resume', download.gid, 'resume', 'btn-dot-resume'));
+    }
+    if (download.status === 'active' || download.status === 'waiting' || download.status === 'paused') {
+      actionsDiv.appendChild(createActionButton('btn-stop', download.gid, 'stop', 'btn-dot-stop'));
+    }
+    if (download.status === 'complete' || download.status === 'error' || download.status === 'removed') {
+      actionsDiv.appendChild(createActionButton('btn-delete', download.gid, 'remove', 'btn-dot-delete'));
+    }
+
+    row.appendChild(actionsDiv);
     return row;
   }
 
-  function attachEventListeners() {
-    document.getElementById('btn-settings')?.addEventListener('click', () => {
-      state.showSettings = !state.showSettings;
-      render();
+  function createActionButton(className, gid, label, dotClass) {
+    const btn = document.createElement('button');
+    btn.className = `btn btn-action ${className}`;
+    btn.dataset.gid = gid;
+    btn.innerHTML = `<span class="btn-dot-indicator ${dotClass}"></span>${label}`;
+    btn.addEventListener('click', async () => {
+      try {
+        if (className === 'btn-pause') await pauseDownload(gid);
+        else if (className === 'btn-resume') await unpauseDownload(gid);
+        else if (className === 'btn-stop') await stopDownload(gid);
+        else if (className === 'btn-delete') await removeDownload(gid);
+        await loadData();
+      } catch (err) {
+        console.error('Action failed:', err);
+      }
     });
-    
+    return btn;
+  }
+
+  function attachSettingsListeners() {
     document.getElementById('btn-cancel-settings')?.addEventListener('click', () => {
       state.showSettings = false;
-      render();
+      renderBody();
     });
-    
+
     document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
       const rpcUrl = document.getElementById('setting-rpc-url').value;
       const secret = document.getElementById('setting-secret').value;
@@ -404,7 +408,7 @@ function FullApp() {
       state.showSettings = false;
       loadData();
     });
-    
+
     document.getElementById('btn-test-connection')?.addEventListener('click', async () => {
       const resultEl = document.getElementById('test-result');
       resultEl.className = '';
@@ -418,10 +422,17 @@ function FullApp() {
         resultEl.textContent = 'connection failed: ' + err.message;
       }
     });
-    
-    document.getElementById('btn-refresh')?.addEventListener('click', loadData);
-    
-    document.getElementById('btn-add')?.addEventListener('click', () => {
+  }
+
+  function attachHeaderListeners() {
+    document.getElementById('btn-settings').addEventListener('click', () => {
+      state.showSettings = !state.showSettings;
+      renderBody();
+    });
+
+    document.getElementById('btn-refresh').addEventListener('click', loadData);
+
+    document.getElementById('btn-add').addEventListener('click', () => {
       const url = prompt('Enter download URL:');
       if (url) {
         addDownload([url]).then(() => loadData()).catch(err => alert('Failed: ' + err.message));
@@ -430,10 +441,12 @@ function FullApp() {
   }
 
   async function loadData() {
-    state.loading = true;
-    state.error = null;
-    await render();
-    
+    if (state.loading && state.globalStat) {
+      // already have data, do silent refresh - no loading flash
+    } else {
+      state.loading = true;
+    }
+
     try {
       const data = await getAria2Status();
       state.downloads = {
@@ -443,11 +456,12 @@ function FullApp() {
       };
       state.globalStat = data.globalStat;
       state.loading = false;
+      state.error = null;
     } catch (err) {
       state.error = err.message;
       state.loading = false;
     }
-    await render();
+    renderBody();
   }
 
   function startPolling() {
@@ -463,6 +477,7 @@ function FullApp() {
   }
 
   container.addEventListener('mount', () => {
+    attachHeaderListeners();
     startPolling();
   });
 
@@ -470,7 +485,11 @@ function FullApp() {
     stopPolling();
   });
 
-  render();
+  if (!state.config) {
+    getConfig().then(c => { state.config = c; });
+  }
+
+  renderBody();
   return container;
 }
 

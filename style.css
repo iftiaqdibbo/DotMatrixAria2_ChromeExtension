@@ -535,7 +535,8 @@ input:focus + .toggle-slider {
   flex-shrink: 0;
 }
 
-.dot.filled {
+.dot.filled,
+.dot--filled {
   background: var(--accent);
   box-shadow: 0 0 5px var(--accent-glow);
 }
@@ -989,10 +990,22 @@ input:focus + .toggle-slider {
   transition: opacity 0.15s ease;
 }
 
+.download-progress-full {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.download-progress-full .dot-progress {
+  flex: 1;
+}
+
 .download-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  padding-top: 4px;
 }
 
 .btn-action {

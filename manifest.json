@@ -9,12 +9,17 @@
     "contextMenus",
     "notifications",
     "downloads",
-    "cookies"
+    "cookies",
+    "alarms"
   ],
   "host_permissions": [
     "http://localhost:6800/*",
-    "http://127.0.0.1:6800/*"
+    "http://127.0.0.1:6800/*",
+    "<all_urls>"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; connect-src *"
+  },
   "background": {
     "service_worker": "background.js"
   },
@@ -35,14 +40,6 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "run_at": "document_start",
-      "all_frames": true
-    }
-  ],
   "web_accessible_resources": [
     {
       "resources": ["assets/*"],

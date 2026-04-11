@@ -141,4 +141,4 @@ MIT
 
 - Fonts: Space Mono, Space Grotesk (Google Fonts)
 - Aria2: [aria2/aria2](https://github.com/aria2/aria2)
-- aria2-integration-extension [aria2/aria2-integration-extension](https://github.com/aria2/aria2-integration-extension)
+- aria2-integration-extension [baptistecdr/aria2-integration](https://github.com/baptistecdr/aria2-integration)

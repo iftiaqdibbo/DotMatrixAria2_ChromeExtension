@@ -10,6 +10,8 @@ A Chrome extension for managing aria2 downloads with a sleek dot-matrix aestheti
 
 - **Download Management**: View, pause, resume, stop, and remove downloads
 - **Browser Integration**: Hijack browser downloads and send them directly to aria2
+- **Site Interception**: Auto-detect download URLs from 30+ file hosting sites (Gofile, 1Fichier, Pixeldrain, MediaFire, RapidGator, etc.)
+- **Safe Mode**: Toggle to force single-connection downloads for rate-limited hosts — prevents 429 errors and connection drops
 - **Multiple Views**: Popup panel, full dashboard, and options page
 - **Dot-Matrix Aesthetic**: Clean dark theme with monospace fonts and red accents
 - **Toggleable Hijacking**: Enable/disable browser download interception
@@ -38,6 +40,17 @@ A Chrome extension for managing aria2 downloads with a sleek dot-matrix aestheti
 4. Enter your secret token if configured
 5. Test the connection
 
+### Safe Mode
+
+When enabled (default), downloads from known restrictive file hosts are sent to aria2 with:
+- `max-connection-per-server: 1` — single connection to avoid rate limits
+- `split: 1` — no chunk splitting
+- `enable-http-pipelining: false` — prevents connection drops on some CDNs
+
+This prevents 429 (Too Many Requests) errors and connection drops that occur when aria2's optimized multi-connection settings hammer rate-limited servers.
+
+Disable Safe Mode if you want aria2 to use your full optimized config for all downloads.
+
 ## Usage
 
 ### Popup Panel
@@ -56,16 +69,26 @@ A Chrome extension for managing aria2 downloads with a sleek dot-matrix aestheti
 Enable "Hijack Downloads" to intercept browser downloads and send them to aria2 automatically.
 
 **How it works:**
-- Uses the `chrome.downloads` API to intercept all browser downloads
+- Uses the `chrome.downloads` API to intercept browser downloads
+- Content script monitors fetch/XHR responses for hidden download URLs from file hosting sites
 - Extracts cookies via the `chrome.cookies` API and forwards them to aria2
-- Sends referrer and cookie headers so authenticated sites (e.g. GoFile) work correctly
-- Can also right-click any link and select "Download with aria2"
+- Sends referrer and cookie headers so authenticated sites (e.g. Gofile) work correctly
+- Right-click any link and select "Download with aria2"
+
+### Supported File Hosts (Site Interception)
+
+The content script scans fetch/XHR responses for download URLs from these hosts:
+
+1Fichier, Bowfile, Chomikuj, ClickNUpload, DailyUploads, DataNodes, DayUploads, DL.Free, DownMediaLoad, FileBin, FileDitch, FreedLink, Gofile, HexLoad, 1CloudFile, MediaFire, Mega, MegaUp, MixDrop, NitroFlare, Oshi.at, osu!ppy, Pixeldrain, RapidGator, Ranoz, SwissTransfer, Tmpfiles, UploadNow, UsersDrive, VikingFile, WDHO
+
+To add a new site, add a regex pattern to `siteInterceptors` in `content.js` and add the hostname to `safeModeHosts` in `background.js` if it's rate-limited.
 
 ## File Structure
 
 ```
 ├── manifest.json      # Extension manifest
 ├── background.js      # Service worker for download interception and RPC
+├── content.js         # Content script for site-specific URL interception
 ├── popup.html/js      # Popup panel
 ├── options.html/js    # Options page
 ├── full.html/js       # Full dashboard
@@ -90,10 +113,14 @@ MIT
 ## Troubleshooting
 
 ### Downloads failing on certain sites
-The extension captures downloads via the `chrome.downloads` API and forwards cookies automatically. If a site still fails:
+- Enable **Safe Mode** in options — this forces single-connection downloads for known restrictive hosts
 - Try using the context menu (right-click → "Download with aria2")
 - Ensure the "Hijack Downloads" toggle is enabled
 - Check that aria2 is running and connected
+
+### Downloads going to wrong directory
+- Set the download path in the extension options page
+- If empty, aria2 uses its own `dir` config from `aria2.conf`
 
 ### aria2 not connecting
 - Ensure aria2 is running with RPC enabled: `aria2c --enable-rpc`

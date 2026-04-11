@@ -1,10 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Doto:wght@400;700&family=Space+Mono:wght@400;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
 :root {
   color-scheme: dark;
-  --bg: #050505;
-  --bg-elevated: #0a0a0a;
-  --bg-card: #0d0d0d;
+  --bg: #000000;
+  --bg-elevated: #050505;
+  --bg-card: #0a0a0a;
   --border: #1a1a1a;
   --border-light: #252525;
   --text: #d8d8d8;
@@ -71,10 +71,10 @@ body {
 }
 
 .title {
-  font-family: 'Space Mono', monospace;
-  font-size: 1.2rem;
+  font-family: 'Doto', sans-serif;
+  font-size: 1.4rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.08em;
   color: var(--text);
   margin: 0;
 }

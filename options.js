@@ -8,15 +8,29 @@ async function getConfig() {
       'aria2_rpc_url',
       'aria2_rpc_secret',
       'aria2_default_download_path',
-      'aria2_hijack_downloads'
+      'aria2_hijack_downloads',
+      'aria2_safe_mode'
     ], (result) => {
       resolve({
         rpcUrl: result.aria2_rpc_url || DEFAULT_RPC_URL,
         secret: result.aria2_rpc_secret || '',
         downloadPath: result.aria2_default_download_path || '',
         hijackDownloads: result.aria2_hijack_downloads || false,
+        safeMode: result.aria2_safe_mode || false,
       });
     });
+  });
+}
+
+function saveConfig(config) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({
+      aria2_rpc_url: config.rpcUrl,
+      aria2_rpc_secret: config.secret,
+      aria2_default_download_path: config.downloadPath,
+      aria2_hijack_downloads: config.hijackDownloads,
+      aria2_safe_mode: config.safeMode,
+    }, resolve);
   });
 }
 
@@ -202,6 +216,20 @@ function OptionsApp() {
           </div>
           <span class="input-hint">When enabled, all file downloads will be redirected to aria2</span>
         </div>
+
+        <div class="form-group">
+          <div class="hijack-toggle-row" style="margin-bottom: 8px;">
+            <div class="hijack-info">
+              <span class="hijack-label">Safe Mode</span>
+              <span class="hijack-desc">Force single connection for known file hosting sites</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="safe-mode-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <span class="input-hint">Prevents rate-limiting and connection drops on restrictive hosts (1Fichier, Gofile, RapidGator, etc.)</span>
+        </div>
       </section>
 
       <div class="divider"></div>
@@ -237,6 +265,7 @@ function OptionsApp() {
     document.getElementById('rpc-secret').value = config.secret;
     document.getElementById('download-path').value = config.downloadPath;
     document.getElementById('hijack-toggle').checked = config.hijackDownloads;
+    document.getElementById('safe-mode-toggle').checked = config.safeMode;
 
     const testBtn = document.getElementById('test-connection');
     const testResult = document.getElementById('test-result');
@@ -267,6 +296,7 @@ function OptionsApp() {
         secret: document.getElementById('rpc-secret').value.trim(),
         downloadPath: document.getElementById('download-path').value.trim(),
         hijackDownloads: document.getElementById('hijack-toggle').checked,
+        safeMode: document.getElementById('safe-mode-toggle').checked,
       });
       
       testResult.textContent = 'settings saved!';

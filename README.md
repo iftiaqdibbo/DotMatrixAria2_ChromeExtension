@@ -1,6 +1,6 @@
 # Aria2 Dashboard
 
-A Chrome extension for managing aria2 downloads with a sleek dot-matrix aesthetic and real-time updates.
+A browser extension for managing aria2 downloads with a sleek dot-matrix aesthetic and real-time updates. Supports both Chrome and Firefox.
 
 ![Aria2 Dashboard Popup](sc1.png)
 
@@ -12,6 +12,7 @@ A Chrome extension for managing aria2 downloads with a sleek dot-matrix aestheti
 
 - **Real-Time Updates**: Live download progress, speed, and status — refreshes continuously via recursive polling
 - **Download Management**: View, pause, resume, stop, and remove downloads
+- **Queue Reordering**: Move waiting downloads up and down the queue
 - **Browser Integration**: Hijack browser downloads and send them directly to aria2
 - **Badge Notifications**: Active download count shown on the extension icon
 - **Site Interception**: Auto-detect download URLs from 30+ file hosting sites (Gofile, 1Fichier, Pixeldrain, MediaFire, RapidGator, etc.)
@@ -24,13 +25,22 @@ A Chrome extension for managing aria2 downloads with a sleek dot-matrix aestheti
 
 ## Installation
 
-### From Source
+### Chrome
 
 1. Clone this repository
 2. Open Chrome and go to `chrome://extensions/`
 3. Enable "Developer mode"
 4. Click "Load unpacked"
-5. Select the extension folder
+5. Select the root folder of this repository
+
+### Firefox
+
+1. Clone this repository
+2. Open Firefox and go to `about:debugging`
+3. Click "This Firefox" → "Load Temporary Add-on"
+4. Select `firefox/manifest.json` in this repository
+
+**Note:** Firefox temporary add-ons are removed when the browser closes. For permanent installation, the extension needs to be signed by Mozilla and distributed via [AMO](https://addons.mozilla.org/).
 
 ### From Release
 
@@ -80,9 +90,9 @@ Disable Safe Mode if you want aria2 to use your full optimized config for all do
 Enable "Hijack Downloads" to intercept browser downloads and send them to aria2 automatically.
 
 **How it works:**
-- Uses the `chrome.downloads` API to intercept browser downloads
+- Uses the downloads API to intercept browser downloads
 - Content script monitors fetch/XHR responses for hidden download URLs from file hosting sites
-- Extracts cookies via the `chrome.cookies` API and forwards them to aria2
+- Extracts cookies and forwards them to aria2
 - Sends referrer and cookie headers so authenticated sites (e.g. Gofile) work correctly
 - Right-click any link and select "Download with aria2"
 
@@ -94,18 +104,45 @@ The content script scans fetch/XHR responses for download URLs from these hosts:
 
 To add a new site, add a regex pattern to `siteInterceptors` in `content.js` and add the hostname to `safeModeHosts` in `background.js` if it's rate-limited.
 
+## Building
+
+Run the build script to package for both browsers:
+```bash
+./build.sh
+```
+
+This creates:
+- `dist/aria2-dashboard-chrome.zip`
+- `dist/aria2-dashboard-firefox.zip`
+
 ## File Structure
 
 ```
-├── manifest.json      # Extension manifest
-├── background.js      # Service worker for download interception and RPC
-├── content.js         # Content script for site-specific URL interception
-├── popup.html/js      # Popup panel
-├── options.html/js    # Options page
-├── full.html/js       # Full dashboard
-├── style.css          # Styles (dot-matrix theme)
-└── icons/             # Extension icons
+├── manifest.json          # Chrome extension manifest
+├── background.js          # Chrome service worker
+├── content.js             # Content script for site-specific URL interception
+├── popup.html/js          # Popup panel
+├── options.html/js        # Options page
+├── full.html/js           # Full dashboard
+├── style.css              # Styles (dot-matrix theme)
+├── icons/                 # Extension icons
+├── build.sh               # Build script for packaging
+├── firefox/               # Firefox build (standalone)
+│   ├── manifest.json      # Firefox manifest (with gecko settings)
+│   ├── background.js      # Firefox background script (promise-based APIs)
+│   └── ...                # Other files shared with Chrome build
+└── dist/                  # Build output (gitignored)
 ```
+
+### Chrome vs Firefox Differences
+
+| Aspect | Chrome | Firefox |
+|--------|--------|---------|
+| Background | Service worker | Background script |
+| API style | Callbacks | Promises |
+| Download capture | `onChanged` + `onDeterminingFilename` | `onCreated` directly |
+| Manifest | `service_worker` | `scripts` array |
+| Add-on ID | N/A | `browser_specific_settings.gecko` |
 
 ## Permissions
 
@@ -147,4 +184,3 @@ MIT
 
 - Fonts: Space Mono, Space Grotesk (Google Fonts)
 - Aria2: [aria2/aria2](https://github.com/aria2/aria2)
-- aria2-integration-extension [baptistecdr/aria2-integration](https://github.com/baptistecdr/aria2-integration)

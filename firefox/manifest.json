@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "Aria2 Dashboard",
+  "version": "1.0.0",
+  "description": "Dot-matrix aria2 download manager dashboard",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "aria2-dashboard@example.com",
+      "strict_min_version": "109.0"
+    }
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "contextMenus",
+    "notifications",
+    "downloads",
+    "cookies",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://localhost:6800/*",
+    "http://127.0.0.1:6800/*",
+    "<all_urls>"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; connect-src *"
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "Aria2 Dashboard"
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

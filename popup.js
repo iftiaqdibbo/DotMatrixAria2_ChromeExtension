@@ -176,13 +176,12 @@ function PopupApp() {
   container.appendChild(content);
   container.appendChild(footer);
 
-  let pollInterval;
+  let pollTimeout;
 
   async function init() {
     const config = await getConfig();
     document.getElementById('hijack-toggle').checked = config.hijackDownloads;
     loadData();
-    pollInterval = setInterval(loadData, 3000);
   }
 
   async function loadData() {
@@ -212,6 +211,7 @@ function PopupApp() {
       document.getElementById('connection-status').className = 'connection-status disconnected';
       document.getElementById('downloads-list').innerHTML = '<div class="empty-state error">' + err.message + '</div>';
     }
+    pollTimeout = setTimeout(loadData, 1000);
   }
 
   function createDownloadRow(download) {
@@ -324,7 +324,7 @@ function PopupApp() {
   });
 
   container.addEventListener('unmount', () => {
-    if (pollInterval) clearInterval(pollInterval);
+    if (pollTimeout) clearTimeout(pollTimeout);
   });
 
   return container;

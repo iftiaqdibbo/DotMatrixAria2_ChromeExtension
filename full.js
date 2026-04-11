@@ -105,7 +105,7 @@ function FullApp() {
     loading: true,
     error: null,
     showSettings: false,
-    pollInterval: null,
+    pollTimeout: null,
     config: null,
   };
 
@@ -462,17 +462,17 @@ function FullApp() {
       state.loading = false;
     }
     renderBody();
+    state.pollTimeout = setTimeout(loadData, 1000);
   }
 
   function startPolling() {
     loadData();
-    state.pollInterval = setInterval(loadData, 3000);
   }
 
   function stopPolling() {
-    if (state.pollInterval) {
-      clearInterval(state.pollInterval);
-      state.pollInterval = null;
+    if (state.pollTimeout) {
+      clearTimeout(state.pollTimeout);
+      state.pollTimeout = null;
     }
   }
 

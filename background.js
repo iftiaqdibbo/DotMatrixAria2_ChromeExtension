@@ -1,6 +1,7 @@
 const DEFAULT_RPC_URL = 'http://localhost:6800/jsonrpc';
 
 const downloadItems = {};
+const capturedIds = new Set();
 
 function isChromium() {
   return typeof chrome !== 'undefined' && chrome.downloads && typeof chrome.downloads.onDeterminingFilename !== 'undefined';
@@ -34,6 +35,23 @@ async function getCookies(url, storeId) {
       resolve('');
     }
   });
+}
+
+async function getCookiesForUrls(urls, storeId) {
+  const allCookies = await Promise.all(urls.map(url => getCookies(url, storeId)));
+  const seen = new Set();
+  let combined = '';
+  for (const cookieStr of allCookies) {
+    if (!cookieStr) continue;
+    cookieStr.split(';').forEach(part => {
+      const trimmed = part.trim();
+      if (trimmed && !seen.has(trimmed)) {
+        seen.add(trimmed);
+        combined += trimmed + ';';
+      }
+    });
+  }
+  return combined;
 }
 
 async function findCurrentTab() {
@@ -74,7 +92,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       urls.push(...info.selectionText.split(/\s+/));
     }
     const referer = tab?.url ?? "";
-    const cookies = await getCookies(referer, tab?.cookieStoreId);
+    const cookieStoreId = tab?.cookieStoreId;
+    const cookies = await getCookiesForUrls([referer, ...urls], cookieStoreId);
     for (const url of urls) {
       await addDownloadToAria2(url, null, referer, cookies);
     }
@@ -119,15 +138,7 @@ function basename(filepath) {
   return result ? result[0] : filepath;
 }
 
-function dirname(filepath) {
-  const isWindows = /^[a-zA-Z]:\\|^\\|^\.\.?\\/.test(filepath);
-  const result = isWindows
-    ? filepath.match(/^(.*)\\[^\\]+$/)
-    : filepath.match(/^(.*)\/[^/]+$/);
-  return result ? result[1] : filepath;
-}
-
-async function addDownloadToAria2(url, filename, referer, cookies, directory) {
+async function addDownloadToAria2(url, filename, referer, cookies) {
   try {
     const { aria2_rpc_url, aria2_rpc_secret, aria2_default_download_path } =
       await chrome.storage.local.get(['aria2_rpc_url', 'aria2_rpc_secret', 'aria2_default_download_path']);
@@ -137,8 +148,8 @@ async function addDownloadToAria2(url, filename, referer, cookies, directory) {
 
     options.header = [`Referer: ${referer}`, `Cookie: ${cookies}`];
 
-    if (directory || aria2_default_download_path) {
-      options.dir = directory || aria2_default_download_path;
+    if (aria2_default_download_path) {
+      options.dir = aria2_default_download_path;
     }
     if (filename) {
       options.out = filename;
@@ -190,17 +201,24 @@ async function captureDownloadItem(item, referer, cookies) {
 }
 
 async function handleDownload(downloadItem, handler) {
+  if (capturedIds.has(downloadItem.id)) {
+    return;
+  }
   const settings = await chrome.storage.local.get(['aria2_hijack_downloads']);
   if (!downloadMustBeCaptured(downloadItem, downloadItem.referrer, settings)) {
     return;
   }
+
+  capturedIds.add(downloadItem.id);
 
   let referrer = downloadItem.referrer ?? "";
   const currentTab = await findCurrentTab();
   if (referrer === "" || referrer === "about:blank") {
     referrer = currentTab?.url ?? "";
   }
-  const cookies = await getCookies(referrer, currentTab?.cookieStoreId);
+  const cookieStoreId = currentTab?.cookieStoreId;
+  const downloadUrl = downloadItem.finalUrl || downloadItem.url;
+  const cookies = await getCookiesForUrls([referrer, downloadUrl], cookieStoreId);
 
   handler(downloadItem, referrer, cookies);
 }
@@ -231,28 +249,32 @@ if (isChromium() && chrome.downloads.onChanged) {
     }
     if (downloadDelta.error?.current && downloadItems[downloadDelta.id]) {
       delete downloadItems[downloadDelta.id];
+      capturedIds.delete(downloadDelta.id);
     }
   });
 }
 
 chrome.downloads.onCreated.addListener(async (downloadItem) => {
-  await handleDownload(downloadItem, async (item, referrer, cookies) => {
-    if (isFirefox()) {
+  if (isFirefox()) {
+    await handleDownload(downloadItem, async (item, referrer, cookies) => {
       await removeDownloadItemCompletely(item);
       try {
         await captureDownloadItem(item, referrer, cookies);
       } catch (err) {
         console.error('Failed to capture download:', err);
       }
-    } else {
-      downloadItems[downloadItem.id] = downloadItem;
-    }
-  });
+    });
+  } else {
+    downloadItems[downloadItem.id] = downloadItem;
+  }
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'ADD_DOWNLOAD') {
-    addDownloadToAria2(request.url, null, request.referrer ?? "", request.cookies ?? "")
+    const referer = request.referrer ?? "";
+    const urls = [request.url];
+    getCookiesForUrls([referer, request.url])
+      .then(cookies => addDownloadToAria2(request.url, null, referer, cookies))
       .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ success: false, error: err.message }));
     return true;

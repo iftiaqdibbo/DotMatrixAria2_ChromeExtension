@@ -308,7 +308,7 @@ function OptionsApp() {
     });
 
     openDashboardBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: chrome.runtime.getURL('full.html') });
+      chrome.tabs.create({ url: chrome.runtime.getURL('src/full.html') });
     });
 
     addDownloadBtn.addEventListener('click', () => {

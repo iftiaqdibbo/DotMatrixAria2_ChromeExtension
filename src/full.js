@@ -67,6 +67,28 @@ async function testConnection() {
   return callAria2('aria2.getVersion');
 }
 
+async function testConnectionWithParams(rpcUrl, secret) {
+  const secretToken = secret ? [`token:${secret}`] : [];
+  const body = {
+    jsonrpc: '2.0',
+    id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+    method: 'aria2.getVersion',
+    params: secretToken,
+  };
+
+  const response = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const parsed = await response.json();
+  if (parsed.error) {
+    throw new Error(parsed.error.message || 'aria2 RPC error');
+  }
+  return parsed.result;
+}
+
 async function addDownload(urls, options = {}) {
   const config = await getConfig();
   const params = [urls];
@@ -413,6 +435,7 @@ function FullApp() {
     document.getElementById('btn-cancel-settings')?.addEventListener('click', () => {
       state.showSettings = false;
       renderBody();
+      startPolling();
     });
 
     document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
@@ -429,7 +452,9 @@ function FullApp() {
       resultEl.className = '';
       resultEl.textContent = 'testing...';
       try {
-        await testConnection();
+        const rpcUrl = document.getElementById('setting-rpc-url').value;
+        const secret = document.getElementById('setting-secret').value;
+        await testConnectionWithParams(rpcUrl, secret);
         resultEl.className = 'test-success';
         resultEl.textContent = 'connection successful!';
       } catch (err) {
@@ -442,7 +467,13 @@ function FullApp() {
   function attachHeaderListeners() {
     document.getElementById('btn-settings').addEventListener('click', () => {
       state.showSettings = !state.showSettings;
+      if (state.showSettings) {
+        stopPolling();
+      }
       renderBody();
+      if (!state.showSettings) {
+        startPolling();
+      }
     });
 
     document.getElementById('btn-refresh').addEventListener('click', loadData);
@@ -478,7 +509,9 @@ function FullApp() {
       state.loading = false;
     }
     renderBody();
-    state.pollTimeout = setTimeout(loadData, 1000);
+    if (!state.showSettings) {
+      state.pollTimeout = setTimeout(loadData, 1000);
+    }
   }
 
   function startPolling() {

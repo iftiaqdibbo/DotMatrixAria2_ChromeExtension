@@ -332,7 +332,7 @@ function PopupApp() {
     
     document.getElementById('open-full').addEventListener('click', (e) => {
       e.preventDefault();
-      chrome.tabs.create({ url: chrome.runtime.getURL('full.html') });
+      chrome.tabs.create({ url: chrome.runtime.getURL('src/full.html') });
     });
     
     document.getElementById('hijack-toggle').addEventListener('change', (e) => {

@@ -14,6 +14,7 @@ A Chrome extension for managing aria2 downloads with a sleek dot-matrix aestheti
 - **Dot-Matrix Aesthetic**: Clean dark theme with monospace fonts and red accents
 - **Toggleable Hijacking**: Enable/disable browser download interception
 - **RPC Authentication**: Support for aria2 secret tokens
+- **Cookie Forwarding**: Automatically sends cookies and referrer to aria2 for authenticated downloads
 
 ## Installation
 
@@ -24,17 +25,6 @@ A Chrome extension for managing aria2 downloads with a sleek dot-matrix aestheti
 3. Enable "Developer mode"
 4. Click "Load unpacked"
 5. Select the extension folder
-
-### Icons Setup
-
-If icons don't appear, convert the SVG to PNG:
-
-```bash
-cd icons
-./convert.sh
-```
-
-Requires Inkscape or ImageMagick.
 
 ## Configuration
 
@@ -66,17 +56,16 @@ Requires Inkscape or ImageMagick.
 Enable "Hijack Downloads" to intercept browser downloads and send them to aria2 automatically.
 
 **How it works:**
-- Content script injects into pages to capture download clicks
-- Hooks fetch/XHR to intercept dynamic download URLs
-- Passes cookies, referrer, and User-Agent to aria2
-- Works with JavaScript-protected sites (Cloudflare, etc.)
+- Uses the `chrome.downloads` API to intercept all browser downloads
+- Extracts cookies via the `chrome.cookies` API and forwards them to aria2
+- Sends referrer and cookie headers so authenticated sites (e.g. GoFile) work correctly
+- Can also right-click any link and select "Download with aria2"
 
 ## File Structure
 
 ```
 ├── manifest.json      # Extension manifest
-├── background.js      # Service worker for download interception
-├── content.js         # Content script for page integration
+├── background.js      # Service worker for download interception and RPC
 ├── popup.html/js      # Popup panel
 ├── options.html/js    # Options page
 ├── full.html/js       # Full dashboard
@@ -92,8 +81,7 @@ Enable "Hijack Downloads" to intercept browser downloads and send them to aria2 
 - `notifications`: Download status notifications
 - `downloads`: Download interception
 - `cookies`: Access cookies for authenticated downloads
-- `host_permissions`: Connect to aria2 RPC
-- `<all_urls>`: Content script injection for download capture
+- `host_permissions`: Connect to aria2 RPC and access cookies from all sites
 
 ## License
 
@@ -102,10 +90,10 @@ MIT
 ## Troubleshooting
 
 ### Downloads failing on certain sites
-The extension uses a content script to capture download URLs from the page's JavaScript context. If a site still fails:
-- The site may use complex obfuscation
+The extension captures downloads via the `chrome.downloads` API and forwards cookies automatically. If a site still fails:
 - Try using the context menu (right-click → "Download with aria2")
-- Some sites require browser cookies which are passed automatically
+- Ensure the "Hijack Downloads" toggle is enabled
+- Check that aria2 is running and connected
 
 ### aria2 not connecting
 - Ensure aria2 is running with RPC enabled: `aria2c --enable-rpc`

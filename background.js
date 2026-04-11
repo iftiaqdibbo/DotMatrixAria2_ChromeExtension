@@ -186,8 +186,7 @@ async function addDownloadToAria2(url, filename, referer, cookies, directory) {
 async function captureDownloadItem(item, referer, cookies) {
   const url = item.finalUrl || item.url;
   const filename = basename(item.filename);
-  const directory = dirname(item.filename);
-  await addDownloadToAria2(url, filename, referer, cookies, directory);
+  await addDownloadToAria2(url, filename, referer, cookies);
 }
 
 async function handleDownload(downloadItem, handler) {

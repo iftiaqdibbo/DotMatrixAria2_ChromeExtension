@@ -66,6 +66,10 @@ async function removeDownload(gid) {
   return callAria2('aria2.removeDownloadResult', [gid]);
 }
 
+async function moveDownload(gid, pos, how) {
+  return callAria2('aria2.changePosition', [gid, pos, how]);
+}
+
 async function getAria2Status() {
   const tellKeys = [
     'gid', 'status', 'totalLength', 'completedLength',
@@ -199,13 +203,16 @@ function PopupApp() {
         listEl.innerHTML = '<div class="empty-state">no active downloads</div>';
       } else {
         listEl.innerHTML = '';
-        allDownloads.forEach(d => {
-          listEl.appendChild(createDownloadRow(d));
+        allDownloads.forEach((d, i) => {
+          const waitingIndex = i - active.length;
+          const isWaiting = d.status === 'waiting' || d.status === 'paused';
+          listEl.appendChild(createDownloadRow(d, isWaiting ? waitingIndex : -1, waiting.length));
         });
       }
       
       document.getElementById('connection-status').textContent = 'connected';
       document.getElementById('connection-status').className = 'connection-status connected';
+      chrome.runtime.sendMessage({ type: 'UPDATE_BADGE', activeCount: parseInt(globalStat.numActive) || 0 });
     } catch (err) {
       document.getElementById('connection-status').textContent = 'disconnected';
       document.getElementById('connection-status').className = 'connection-status disconnected';
@@ -214,10 +221,12 @@ function PopupApp() {
     pollTimeout = setTimeout(loadData, 1000);
   }
 
-  function createDownloadRow(download) {
+  function createDownloadRow(download, waitingIndex, totalWaiting) {
     const total = parseInt(download.totalLength) || 1;
     const completed = parseInt(download.completedLength);
     const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const canMoveUp = waitingIndex > 0;
+    const canMoveDown = waitingIndex >= 0 && waitingIndex < totalWaiting - 1;
     
     const row = document.createElement('div');
     row.className = 'download-item popup-item';
@@ -231,6 +240,12 @@ function PopupApp() {
           </div>
         </div>
         <div class="download-actions-compact">
+          ${canMoveUp ? `
+            <button class="btn-action-icon btn-move-up" data-gid="${download.gid}" title="Move up">▲</button>
+          ` : ''}
+          ${canMoveDown ? `
+            <button class="btn-action-icon btn-move-down" data-gid="${download.gid}" title="Move down">▼</button>
+          ` : ''}
           ${download.status === 'active' ? `
             <button class="btn-action-icon btn-pause" data-gid="${download.gid}" title="Pause">⏸</button>
           ` : ''}
@@ -260,6 +275,8 @@ function PopupApp() {
           else if (btn.classList.contains('btn-resume')) await unpauseDownload(gid);
           else if (btn.classList.contains('btn-stop')) await stopDownload(gid);
           else if (btn.classList.contains('btn-delete')) await removeDownload(gid);
+          else if (btn.classList.contains('btn-move-up')) await moveDownload(gid, -1, 'POS_SET');
+          else if (btn.classList.contains('btn-move-down')) await moveDownload(gid, 1, 'POS_SET');
           await loadData();
         } catch (err) {
           console.error('Action failed:', err);

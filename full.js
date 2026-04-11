@@ -97,6 +97,10 @@ async function removeDownload(gid) {
   return callAria2('aria2.removeDownloadResult', [gid]);
 }
 
+async function moveDownload(gid, pos, how) {
+  return callAria2('aria2.changePosition', [gid, pos, how]);
+}
+
 function FullApp() {
   let state = {
     activeTab: 'active',
@@ -300,8 +304,8 @@ function FullApp() {
     if (downloads.length === 0) {
       downloadList.innerHTML = `<div class="empty-state">no ${state.activeTab} downloads</div>`;
     } else {
-      downloads.forEach(download => {
-        downloadList.appendChild(createDownloadRow(download));
+      downloads.forEach((download, i) => {
+        downloadList.appendChild(createDownloadRow(download, i, downloads.length));
       });
     }
 
@@ -313,11 +317,13 @@ function FullApp() {
     bodyEl.appendChild(dashboard);
   }
 
-  function createDownloadRow(download) {
+  function createDownloadRow(download, index, totalInTab) {
     const total = parseInt(download.totalLength) || 1;
     const completed = parseInt(download.completedLength);
     const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
     const speed = parseInt(download.downloadSpeed) || 0;
+    const canMoveUp = state.activeTab === 'waiting' && index > 0;
+    const canMoveDown = state.activeTab === 'waiting' && index < totalInTab - 1;
 
     const row = document.createElement('div');
     row.className = 'download-row';
@@ -358,6 +364,13 @@ function FullApp() {
     const actionsDiv = document.createElement('div');
     actionsDiv.className = 'download-actions';
 
+    if (canMoveUp) {
+      actionsDiv.appendChild(createActionButton('btn-move-up', download.gid, '▲ up', 'btn-dot-move'));
+    }
+    if (canMoveDown) {
+      actionsDiv.appendChild(createActionButton('btn-move-down', download.gid, '▼ down', 'btn-dot-move'));
+    }
+
     if (download.status === 'active') {
       actionsDiv.appendChild(createActionButton('btn-pause', download.gid, 'pause', 'btn-dot-pause'));
     }
@@ -386,6 +399,8 @@ function FullApp() {
         else if (className === 'btn-resume') await unpauseDownload(gid);
         else if (className === 'btn-stop') await stopDownload(gid);
         else if (className === 'btn-delete') await removeDownload(gid);
+        else if (className === 'btn-move-up') await moveDownload(gid, -1, 'POS_SET');
+        else if (className === 'btn-move-down') await moveDownload(gid, 1, 'POS_SET');
         await loadData();
       } catch (err) {
         console.error('Action failed:', err);
@@ -457,6 +472,7 @@ function FullApp() {
       state.globalStat = data.globalStat;
       state.loading = false;
       state.error = null;
+      chrome.runtime.sendMessage({ type: 'UPDATE_BADGE', activeCount: parseInt(data.globalStat.numActive) || 0 });
     } catch (err) {
       state.error = err.message;
       state.loading = false;

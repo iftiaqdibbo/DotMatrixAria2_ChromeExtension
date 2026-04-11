@@ -417,6 +417,17 @@ input:focus + .toggle-slider {
   background: var(--red-dim);
 }
 
+.btn-move-up:hover, .btn-move-down:hover {
+  border-color: var(--text-secondary);
+  color: var(--text);
+  background: var(--bg-elevated);
+}
+
+.btn-dot-move {
+  background: var(--text-secondary);
+  box-shadow: 0 0 4px rgba(112, 112, 112, 0.3);
+}
+
 .download-info {
   flex: 1;
   min-width: 0;

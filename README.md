@@ -1,6 +1,6 @@
 # Aria2 Dashboard
 
-A Chrome extension for managing aria2 downloads with a sleek dot-matrix aesthetic.
+A Chrome extension for managing aria2 downloads with a sleek dot-matrix aesthetic and real-time updates.
 
 ![Aria2 Dashboard Popup](sc1.png)
 
@@ -10,8 +10,10 @@ A Chrome extension for managing aria2 downloads with a sleek dot-matrix aestheti
 
 ## Features
 
+- **Real-Time Updates**: Live download progress, speed, and status — refreshes continuously via recursive polling
 - **Download Management**: View, pause, resume, stop, and remove downloads
 - **Browser Integration**: Hijack browser downloads and send them directly to aria2
+- **Badge Notifications**: Active download count shown on the extension icon
 - **Site Interception**: Auto-detect download URLs from 30+ file hosting sites (Gofile, 1Fichier, Pixeldrain, MediaFire, RapidGator, etc.)
 - **Safe Mode**: Toggle to force single-connection downloads for rate-limited hosts — prevents 429 errors and connection drops
 - **Multiple Views**: Popup panel, full dashboard, and options page
@@ -56,14 +58,15 @@ Disable Safe Mode if you want aria2 to use your full optimized config for all do
 ## Usage
 
 ### Popup Panel
-- Quick view of active downloads
+- Quick view of active and waiting downloads
 - Compact stats (active, waiting, speed)
 - Toggle download hijacking
-- Action buttons for each download
+- Action buttons for each download (pause, resume, stop, reorder)
 
 ### Full Dashboard
 - Complete download management
 - Tabbed interface (active/waiting/stopped)
+- Reorder waiting downloads (move up/down in queue)
 - Settings panel for RPC configuration
 - Real-time updates
 
@@ -106,6 +109,7 @@ To add a new site, add a regex pattern to `siteInterceptors` in `content.js` and
 - `notifications`: Download status notifications
 - `downloads`: Download interception
 - `cookies`: Access cookies for authenticated downloads
+- `alarms`: Reserved for scheduled tasks
 - `host_permissions`: Connect to aria2 RPC and access cookies from all sites
 
 ## License
@@ -129,6 +133,12 @@ MIT
 - Check the RPC URL in extension options (default: `http://localhost:6800/jsonrpc`)
 - Verify firewall settings allow connections to the RPC port
 
+### Badge not updating
+- Badge shows the active download count and updates when the popup or full dashboard is open
+- Close and reopen the popup to trigger a refresh if the count seems stale
+
 ## Credits
 
 - Fonts: Space Mono, Space Grotesk (Google Fonts)
+- Aria2: [aria2/aria2](https://github.com/aria2/aria2)
+- aria2-integration-extension [aria2/aria2-integration-extension](https://github.com/aria2/aria2-integration-extension)

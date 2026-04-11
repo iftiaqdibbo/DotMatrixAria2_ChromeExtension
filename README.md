@@ -102,7 +102,7 @@ The content script scans fetch/XHR responses for download URLs from these hosts:
 
 1Fichier, Bowfile, Chomikuj, ClickNUpload, DailyUploads, DataNodes, DayUploads, DL.Free, DownMediaLoad, FileBin, FileDitch, FreedLink, Gofile, HexLoad, 1CloudFile, MediaFire, Mega, MegaUp, MixDrop, NitroFlare, Oshi.at, osu!ppy, Pixeldrain, RapidGator, Ranoz, SwissTransfer, Tmpfiles, UploadNow, UsersDrive, VikingFile, WDHO
 
-To add a new site, add a regex pattern to `siteInterceptors` in `content.js` and add the hostname to `safeModeHosts` in `background.js` if it's rate-limited.
+To add a new site, add a regex pattern to `siteInterceptors` in `src/content.js` and add the hostname to `safeModeHosts` in `src/background.js` (Chrome) or `firefox/background.js` (Firefox) if it's rate-limited.
 
 ## Building
 
@@ -119,18 +119,19 @@ This creates:
 
 ```
 ├── manifest.json          # Chrome extension manifest
-├── background.js          # Chrome service worker
-├── content.js             # Content script for site-specific URL interception
-├── popup.html/js          # Popup panel
-├── options.html/js        # Options page
-├── full.html/js           # Full dashboard
-├── style.css              # Styles (dot-matrix theme)
-├── icons/                 # Extension icons
 ├── build.sh               # Build script for packaging
-├── firefox/               # Firefox build (standalone)
+├── src/                   # Shared source files
+│   ├── background.js      # Chrome service worker
+│   ├── content.js         # Content script for site-specific URL interception
+│   ├── popup.html/js      # Popup panel
+│   ├── options.html/js    # Options page
+│   ├── full.html/js       # Full dashboard
+│   └── style.css          # Styles (dot-matrix theme)
+├── icons/                 # Extension icons
+├── firefox/               # Firefox-specific files
 │   ├── manifest.json      # Firefox manifest (with gecko settings)
 │   ├── background.js      # Firefox background script (promise-based APIs)
-│   └── ...                # Other files shared with Chrome build
+│   └── icons/             # Copy of extension icons
 └── dist/                  # Build output (gitignored)
 ```
 

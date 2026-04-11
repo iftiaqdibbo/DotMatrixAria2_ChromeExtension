@@ -11,27 +11,24 @@ echo "Packaging Chrome extension..."
 cd "$ROOT_DIR"
 zip -r "$DIST_DIR/aria2-dashboard-chrome.zip" \
   manifest.json \
-  background.js \
-  content.js \
-  popup.html popup.js \
-  full.html full.js \
-  options.html options.js \
-  style.css \
+  src/ \
   icons/ \
   -x "*.DS_Store"
 
 echo "Packaging Firefox extension..."
-cd "$ROOT_DIR/firefox"
+TMP_DIR=$(mktemp -d)
+cp "$ROOT_DIR/firefox/manifest.json" "$TMP_DIR/"
+cp "$ROOT_DIR/firefox/background.js" "$TMP_DIR/"
+cp -r "$ROOT_DIR/src" "$TMP_DIR/src"
+cp -r "$ROOT_DIR/firefox/icons" "$TMP_DIR/icons"
+cd "$TMP_DIR"
 zip -r "$ROOT_DIR/$DIST_DIR/aria2-dashboard-firefox.zip" \
   manifest.json \
   background.js \
-  content.js \
-  popup.html popup.js \
-  full.html full.js \
-  options.html options.js \
-  style.css \
+  src/ \
   icons/ \
   -x "*.DS_Store"
+rm -rf "$TMP_DIR"
 
 echo "Done! Packages in $DIST_DIR/:"
 ls -lh "$ROOT_DIR/$DIST_DIR/"

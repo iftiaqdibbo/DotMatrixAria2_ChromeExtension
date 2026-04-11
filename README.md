@@ -32,6 +32,12 @@ A Chrome extension for managing aria2 downloads with a sleek dot-matrix aestheti
 4. Click "Load unpacked"
 5. Select the extension folder
 
+### From Release
+
+1. Download a version from release
+2. Extract it
+3. From step 2-5 from above
+
 ## Configuration
 
 1. Make sure aria2 is running with RPC enabled:

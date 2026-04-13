@@ -17,7 +17,8 @@ A browser extension for managing aria2 downloads with a sleek dot-matrix aesthet
 - **Badge Notifications**: Active download count shown on the extension icon
 - **Site Interception**: Auto-detect download URLs from 30+ file hosting sites (Gofile, 1Fichier, Pixeldrain, MediaFire, RapidGator, etc.)
 - **Safe Mode**: Toggle to force single-connection downloads for rate-limited hosts — prevents 429 errors and connection drops
-- **Multiple Views**: Popup panel, full dashboard, and options page
+- **Safe Mode Site Management**: Add and remove sites from the safe mode list directly in the options UI — no code editing required
+- **Shared Options**: Popup and full dashboard share the same options page with tabbed navigation (General + Safe Mode)
 - **Dot-Matrix Aesthetic**: Clean dark theme with monospace fonts and red accents
 - **Toggleable Hijacking**: Enable/disable browser download interception
 - **RPC Authentication**: Support for aria2 secret tokens
@@ -69,7 +70,20 @@ When enabled (default), downloads from known restrictive file hosts are sent to 
 
 This prevents 429 (Too Many Requests) errors and connection drops that occur when aria2's optimized multi-connection settings hammer rate-limited servers.
 
-Disable Safe Mode if you want aria2 to use your full optimized config for all downloads.
+#### Managing Safe Mode Sites
+
+Safe mode sites are managed through the options page:
+
+1. Open the extension options (gear icon from popup, or from the full dashboard)
+2. Switch to the **Safe Mode** tab
+3. Toggle safe mode on/off
+4. View all sites currently in the safe mode list
+5. Add new sites by typing a domain (e.g. `example.com`) and clicking "add" or pressing Enter
+6. Remove sites by clicking the X button on any site chip
+
+Changes take effect immediately — no need to save or reload.
+
+To add a new site for content script interception (auto-detecting download URLs), you still need to add a regex pattern to `siteInterceptors` in `src/content.js`. However, adding a domain to the safe mode list only requires the options UI — if you're already intercepting the URL through hijack or context menu, safe mode will apply automatically.
 
 ## Usage
 
@@ -78,13 +92,19 @@ Disable Safe Mode if you want aria2 to use your full optimized config for all do
 - Compact stats (active, waiting, speed)
 - Toggle download hijacking
 - Action buttons for each download (pause, resume, stop, reorder)
+- Gear icon opens the shared options page in a new tab
 
 ### Full Dashboard
 - Complete download management
 - Tabbed interface (active/waiting/stopped)
 - Reorder waiting downloads (move up/down in queue)
-- Settings panel for RPC configuration
+- Gear icon opens embedded options panel (General + Safe Mode tabs)
 - Real-time updates
+
+### Options Page
+- **General tab**: RPC URL, secret token, download path, hijack toggle, test connection, quick actions
+- **Safe Mode tab**: Safe mode toggle, managed sites list with add/remove
+- Accessible from popup (gear icon), full dashboard (gear icon), or `chrome://extensions` → options
 
 ### Download Hijacking
 Enable "Hijack Downloads" to intercept browser downloads and send them to aria2 automatically.
@@ -101,8 +121,6 @@ Enable "Hijack Downloads" to intercept browser downloads and send them to aria2 
 The content script scans fetch/XHR responses for download URLs from these hosts:
 
 1Fichier, Bowfile, Chomikuj, ClickNUpload, DailyUploads, DataNodes, DayUploads, DL.Free, DownMediaLoad, FileBin, FileDitch, FreedLink, Gofile, HexLoad, 1CloudFile, MediaFire, Mega, MegaUp, MixDrop, NitroFlare, Oshi.at, osu!ppy, Pixeldrain, RapidGator, Ranoz, SwissTransfer, Tmpfiles, UploadNow, UsersDrive, VikingFile, WDHO
-
-To add a new site, add a regex pattern to `siteInterceptors` in `src/content.js` and add the hostname to `safeModeHosts` in `src/background.js` (Chrome) or `firefox/background.js` (Firefox) if it's rate-limited.
 
 ## Building
 
@@ -124,8 +142,8 @@ This creates:
 │   ├── background.js      # Chrome service worker
 │   ├── content.js         # Content script for site-specific URL interception
 │   ├── popup.html/js      # Popup panel
-│   ├── options.html/js    # Options page
-│   ├── full.html/js       # Full dashboard
+│   ├── options.html/js    # Options page (shared between popup and full dashboard)
+│   ├── full.html/js       # Full dashboard (loads options.js for embedded settings)
 │   └── style.css          # Styles (dot-matrix theme)
 ├── icons/                 # Extension icons
 ├── firefox/               # Firefox-specific files
@@ -147,7 +165,7 @@ This creates:
 
 ## Permissions
 
-- `storage`: Save settings
+- `storage`: Save settings and safe mode host list
 - `activeTab`: Browser integration
 - `contextMenus`: Right-click download option
 - `notifications`: Download status notifications
@@ -164,6 +182,7 @@ MIT
 
 ### Downloads failing on certain sites
 - Enable **Safe Mode** in options — this forces single-connection downloads for known restrictive hosts
+- Make sure the site is in the safe mode list (Options → Safe Mode tab). Add it if missing
 - Try using the context menu (right-click → "Download with aria2")
 - Ensure the "Hijack Downloads" toggle is enabled
 - Check that aria2 is running and connected

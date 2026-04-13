@@ -1,4 +1,4 @@
-// API Layer - Uses chrome.storage.local for all settings
+(function() {
 const DEFAULT_RPC_URL = 'http://localhost:6800/jsonrpc';
 
 async function getConfig() {
@@ -84,8 +84,9 @@ async function getAria2Status() {
   return { globalStat, active, waiting, stopped };
 }
 
-// Popup App
 function PopupApp() {
+  let pollTimeout;
+
   const container = document.createElement('div');
   container.className = 'app popup-mode';
 
@@ -138,34 +139,8 @@ function PopupApp() {
 
   const content = document.createElement('main');
   content.className = 'main popup-content';
-
-  // Top bar with stats only
-  const topBar = document.createElement('div');
-  topBar.className = 'popup-topbar';
-  topBar.innerHTML = `
-    <div class="compact-stats">
-      <div class="compact-stat">
-        <span class="compact-stat-value" id="stat-active">-</span>
-        <span class="compact-stat-label">active</span>
-      </div>
-      <div class="compact-stat">
-        <span class="compact-stat-value" id="stat-waiting">-</span>
-        <span class="compact-stat-label">waiting</span>
-      </div>
-      <div class="compact-stat">
-        <span class="compact-stat-value" id="stat-speed">-</span>
-        <span class="compact-stat-label">speed</span>
-      </div>
-    </div>
-  `;
-
-  const downloadsSection = document.createElement('div');
-  downloadsSection.className = 'downloads-section popup-downloads';
-  downloadsSection.innerHTML = `
-    <div class="downloads-list" id="downloads-list">
-      <div class="empty-state">loading...</div>
-    </div>
-  `;
+  container.appendChild(header);
+  container.appendChild(content);
 
   const footer = document.createElement('footer');
   footer.className = 'popup-footer';
@@ -173,50 +148,99 @@ function PopupApp() {
     <a href="#" class="link-open-full" id="open-full">open full dashboard</a>
     <span class="connection-status" id="connection-status">checking...</span>
   `;
-
-  content.appendChild(topBar);
-  content.appendChild(downloadsSection);
-  container.appendChild(header);
-  container.appendChild(content);
   container.appendChild(footer);
 
-  let pollTimeout;
+  function renderDashboard() {
+    content.innerHTML = '';
 
-  async function init() {
-    const config = await getConfig();
-    document.getElementById('hijack-toggle').checked = config.hijackDownloads;
-    loadData();
+    const topBar = document.createElement('div');
+    topBar.className = 'popup-topbar';
+    topBar.innerHTML = `
+      <div class="compact-stats">
+        <div class="compact-stat">
+          <span class="compact-stat-value" id="stat-active">-</span>
+          <span class="compact-stat-label">active</span>
+        </div>
+        <div class="compact-stat">
+          <span class="compact-stat-value" id="stat-waiting">-</span>
+          <span class="compact-stat-label">waiting</span>
+        </div>
+        <div class="compact-stat">
+          <span class="compact-stat-value" id="stat-speed">-</span>
+          <span class="compact-stat-label">speed</span>
+        </div>
+      </div>
+    `;
+
+    const downloadsSection = document.createElement('div');
+    downloadsSection.className = 'downloads-section popup-downloads';
+    downloadsSection.innerHTML = `
+      <div class="downloads-list" id="downloads-list">
+        <div class="empty-state">loading...</div>
+      </div>
+    `;
+
+    content.appendChild(topBar);
+    content.appendChild(downloadsSection);
   }
 
   async function loadData() {
     try {
       const { globalStat, active, waiting, stopped } = await getAria2Status();
       
-      document.getElementById('stat-active').textContent = globalStat.numActive;
-      document.getElementById('stat-waiting').textContent = globalStat.numWaiting;
-      document.getElementById('stat-speed').textContent = formatSpeed(parseInt(globalStat.downloadSpeed));
+      const statActive = document.getElementById('stat-active');
+      const statWaiting = document.getElementById('stat-waiting');
+      const statSpeed = document.getElementById('stat-speed');
+      
+      if (statActive) statActive.textContent = globalStat.numActive;
+      if (statWaiting) statWaiting.textContent = globalStat.numWaiting;
+      if (statSpeed) statSpeed.textContent = formatSpeed(parseInt(globalStat.downloadSpeed));
       
       const listEl = document.getElementById('downloads-list');
-      const allDownloads = [...active, ...waiting.slice(0, 6)];
-      
-      if (allDownloads.length === 0) {
-        listEl.innerHTML = '<div class="empty-state">no active downloads</div>';
-      } else {
-        listEl.innerHTML = '';
-        allDownloads.forEach((d, i) => {
-          const waitingIndex = i - active.length;
-          const isWaiting = d.status === 'waiting' || d.status === 'paused';
-          listEl.appendChild(createDownloadRow(d, isWaiting ? waitingIndex : -1, waiting.length));
-        });
+      if (listEl) {
+        const allDownloads = [...active, ...waiting.slice(0, 6)];
+        
+        if (allDownloads.length === 0) {
+          listEl.innerHTML = `
+            <div class="empty-downloads">
+              <div class="empty-downloads-dots">
+                <span class="dot dot--empty-anim" style="animation-delay: 0s"></span>
+                <span class="dot dot--empty-anim" style="animation-delay: 0.15s"></span>
+                <span class="dot dot--empty-anim" style="animation-delay: 0.3s"></span>
+                <span class="dot dot--empty-anim" style="animation-delay: 0.45s"></span>
+                <span class="dot dot--empty-anim" style="animation-delay: 0.6s"></span>
+                <span class="dot dot--empty-anim" style="animation-delay: 0.75s"></span>
+                <span class="dot dot--empty-anim" style="animation-delay: 0.9s"></span>
+                <span class="dot dot--empty-anim" style="animation-delay: 1.05s"></span>
+              </div>
+              <div class="empty-downloads-text">idle</div>
+            </div>`;
+        } else {
+          listEl.innerHTML = '';
+          allDownloads.forEach((d, i) => {
+            const waitingIndex = i - active.length;
+            const isWaiting = d.status === 'waiting' || d.status === 'paused';
+            listEl.appendChild(createDownloadRow(d, isWaiting ? waitingIndex : -1, waiting.length));
+          });
+        }
       }
       
-      document.getElementById('connection-status').textContent = 'connected';
-      document.getElementById('connection-status').className = 'connection-status connected';
+      const connStatus = document.getElementById('connection-status');
+      if (connStatus) {
+        connStatus.textContent = 'connected';
+        connStatus.className = 'connection-status connected';
+      }
       chrome.runtime.sendMessage({ type: 'UPDATE_BADGE', activeCount: parseInt(globalStat.numActive) || 0 });
     } catch (err) {
-      document.getElementById('connection-status').textContent = 'disconnected';
-      document.getElementById('connection-status').className = 'connection-status disconnected';
-      document.getElementById('downloads-list').innerHTML = '<div class="empty-state error">' + err.message + '</div>';
+      const connStatus = document.getElementById('connection-status');
+      if (connStatus) {
+        connStatus.textContent = 'disconnected';
+        connStatus.className = 'connection-status disconnected';
+      }
+      const listEl = document.getElementById('downloads-list');
+      if (listEl) {
+        listEl.innerHTML = '<div class="empty-state error">' + escapeHtml(err.message) + '</div>';
+      }
     }
     pollTimeout = setTimeout(loadData, 1000);
   }
@@ -323,8 +347,12 @@ function PopupApp() {
     return div.innerHTML;
   }
 
-  container.addEventListener('mount', () => {
-    init();
+  container.addEventListener('mount', async () => {
+    const config = await getConfig();
+    document.getElementById('hijack-toggle').checked = config.hijackDownloads;
+    
+    renderDashboard();
+    loadData();
     
     document.getElementById('open-options').addEventListener('click', () => {
       chrome.runtime.openOptionsPage();
@@ -355,3 +383,4 @@ app.dispatchEvent(new Event('mount'));
 window.addEventListener('unload', () => {
   app.dispatchEvent(new Event('unmount'));
 });
+})();

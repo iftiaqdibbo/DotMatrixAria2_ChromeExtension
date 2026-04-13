@@ -138,8 +138,19 @@ function showNotification(title, message) {
     iconUrl: 'icons/icon128.png',
     title: title,
     message: message,
-  });
+  }).catch(() => {});
 }
+
+const DEFAULT_SAFE_MODE_HOSTS = [
+  'gofile.io', '1fichier.com', 'pixeldrain.com', 'mediafire.com',
+  'mega.nz', 'ranoz.net', 'datanodes.to', 'bowfile.com',
+  'dl.free.fr', 'swisstransfer.com', 'freedlink.me', 'fileditch.com',
+  'uploadnow.io', 'wdho.ru', 'mixdrop.', 'chomikuj.pl',
+  'vikingfile.com', 'dayuploads.com', 'downmediaload.com', 'hexload.com',
+  '1cloudfile.com', 'usersdrive.com', 'megaup.net', 'clicknupload.org',
+  'dailyuploads.net', 'rapidgator.net', 'nitroflare.com', 'filebin.net',
+  'oshi.at',
+];
 
 api.runtime.onInstalled.addListener(async () => {
   api.contextMenus.create({
@@ -148,7 +159,7 @@ api.runtime.onInstalled.addListener(async () => {
     contexts: ['link', 'selection'],
   });
 
-  const result = await api.storage.local.get(['aria2_rpc_url', 'aria2_default_download_path', 'aria2_hijack_downloads', 'aria2_safe_mode']);
+  const result = await api.storage.local.get(['aria2_rpc_url', 'aria2_default_download_path', 'aria2_hijack_downloads', 'aria2_safe_mode', 'aria2_safe_mode_hosts']);
   const defaults = {};
   if (!result.aria2_rpc_url) {
     defaults.aria2_rpc_url = DEFAULT_RPC_URL;
@@ -158,6 +169,9 @@ api.runtime.onInstalled.addListener(async () => {
   }
   if (result.aria2_safe_mode === undefined) {
     defaults.aria2_safe_mode = true;
+  }
+  if (result.aria2_safe_mode_hosts === undefined) {
+    defaults.aria2_safe_mode_hosts = DEFAULT_SAFE_MODE_HOSTS;
   }
   if (Object.keys(defaults).length > 0) {
     await api.storage.local.set(defaults);
@@ -225,22 +239,22 @@ function downloadMustBeCaptured(item, referrer, settings) {
   return true;
 }
 
+function hostMatchesUrl(host, url) {
+  try {
+    const hostname = new URL(url).hostname;
+    return hostname === host || hostname.endsWith('.' + host);
+  } catch {
+    return url.includes(host);
+  }
+}
+
 async function getSafeModeOptions(url) {
-  const settings = await api.storage.local.get(['aria2_safe_mode']);
+  const settings = await api.storage.local.get(['aria2_safe_mode', 'aria2_safe_mode_hosts']);
   if (!settings.aria2_safe_mode) {
     return null;
   }
-  const safeModeHosts = [
-    'gofile.io', '1fichier.com', 'pixeldrain.com', 'mediafire.com',
-    'mega.nz', 'ranoz.net', 'datanodes.to', 'bowfile.com',
-    'dl.free.fr', 'swisstransfer.com', 'freedlink.me', 'fileditch.com',
-    'uploadnow.io', 'wdho.ru', 'mixdrop.', 'chomikuj.pl',
-    'vikingfile.com', 'dayuploads.com', 'downmediaload.com', 'hexload.com',
-    '1cloudfile.com', 'usersdrive.com', 'megaup.net', 'clicknupload.org',
-    'dailyuploads.net', 'rapidgator.net', 'nitroflare.com', 'filebin.net',
-    'oshi.at',
-  ];
-  const needsSafeMode = safeModeHosts.some(host => url.includes(host));
+  const safeModeHosts = settings.aria2_safe_mode_hosts || DEFAULT_SAFE_MODE_HOSTS;
+  const needsSafeMode = safeModeHosts.some(host => hostMatchesUrl(host, url));
   if (!needsSafeMode) {
     return null;
   }

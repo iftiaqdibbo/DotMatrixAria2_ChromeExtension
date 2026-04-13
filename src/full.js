@@ -1,3 +1,4 @@
+(function() {
 const DEFAULT_RPC_URL = 'http://localhost:6800/jsonrpc';
 
 async function getConfig() {
@@ -13,15 +14,6 @@ async function getConfig() {
         downloadPath: result.aria2_default_download_path || '',
       });
     });
-  });
-}
-
-function saveConfig(config) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set({
-      aria2_rpc_url: config.rpcUrl,
-      aria2_rpc_secret: config.secret,
-    }, resolve);
   });
 }
 
@@ -61,32 +53,6 @@ async function getAria2Status() {
     callAria2('aria2.tellStopped', [0, 100, tellKeys]),
   ]);
   return { globalStat, active, waiting, stopped };
-}
-
-async function testConnection() {
-  return callAria2('aria2.getVersion');
-}
-
-async function testConnectionWithParams(rpcUrl, secret) {
-  const secretToken = secret ? [`token:${secret}`] : [];
-  const body = {
-    jsonrpc: '2.0',
-    id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-    method: 'aria2.getVersion',
-    params: secretToken,
-  };
-
-  const response = await fetch(rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  const parsed = await response.json();
-  if (parsed.error) {
-    throw new Error(parsed.error.message || 'aria2 RPC error');
-  }
-  return parsed.result;
 }
 
 async function addDownload(urls, options = {}) {
@@ -132,7 +98,6 @@ function FullApp() {
     error: null,
     showSettings: false,
     pollTimeout: null,
-    config: null,
   };
 
   const container = document.createElement('div');
@@ -207,28 +172,21 @@ function FullApp() {
 
     if (state.showSettings) {
       const settingsPanel = document.createElement('div');
-      settingsPanel.className = 'settings-panel';
-      settingsPanel.innerHTML = `
-        <h2>connection settings</h2>
-        <div class="settings-fields">
-          <div>
-            <label>RPC URL</label>
-            <input type="text" id="setting-rpc-url" value="${state.config.rpcUrl}" placeholder="http://localhost:6800/jsonrpc">
-          </div>
-          <div>
-            <label>Secret Token</label>
-            <input type="password" id="setting-secret" value="${state.config.secret}" placeholder="optional">
-          </div>
-        </div>
-        <div class="settings-actions">
-          <button class="btn btn-primary" id="btn-save-settings">save</button>
-          <button class="btn btn-secondary" id="btn-test-connection">test</button>
-          <button class="btn btn-secondary" id="btn-cancel-settings">cancel</button>
-        </div>
-        <div id="test-result"></div>
-      `;
+      settingsPanel.className = 'embedded-options-panel';
+      const optionsApp = OptionsApp(true);
+      settingsPanel.appendChild(optionsApp);
+      optionsApp.dispatchEvent(new Event('mount'));
+
+      const closeBtn = optionsApp.querySelector('#btn-close-options');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+          state.showSettings = false;
+          renderBody();
+          startPolling();
+        });
+      }
+
       bodyEl.appendChild(settingsPanel);
-      attachSettingsListeners();
       return;
     }
 
@@ -324,7 +282,39 @@ function FullApp() {
 
     const downloads = state.downloads[state.activeTab] || [];
     if (downloads.length === 0) {
-      downloadList.innerHTML = `<div class="empty-state">no ${state.activeTab} downloads</div>`;
+      downloadList.innerHTML = `
+        <div class="empty-downloads-full">
+          <svg class="empty-logo" viewBox="0 0 42 42" width="64" height="64">
+            <rect x="6" y="6" width="4" height="4" fill="currentColor"/>
+            <rect x="12" y="6" width="4" height="4" fill="currentColor"/>
+            <rect x="18" y="6" width="4" height="4" fill="currentColor"/>
+            <rect x="6" y="12" width="4" height="4" fill="currentColor"/>
+            <rect x="18" y="12" width="4" height="4" fill="currentColor"/>
+            <rect x="24" y="12" width="4" height="4" fill="currentColor"/>
+            <rect x="30" y="12" width="4" height="4" fill="currentColor"/>
+            <rect x="6" y="18" width="4" height="4" fill="currentColor"/>
+            <rect x="12" y="18" width="4" height="4" fill="currentColor"/>
+            <rect x="18" y="18" width="4" height="4" fill="currentColor"/>
+            <rect x="24" y="18" width="4" height="4" fill="currentColor"/>
+            <rect x="30" y="18" width="4" height="4" fill="currentColor"/>
+            <rect x="6" y="24" width="4" height="4" fill="currentColor"/>
+            <rect x="18" y="24" width="4" height="4" fill="currentColor"/>
+            <rect x="30" y="24" width="4" height="4" fill="currentColor"/>
+            <rect x="6" y="30" width="4" height="4" fill="currentColor"/>
+            <rect x="12" y="30" width="4" height="4" fill="currentColor"/>
+            <rect x="18" y="30" width="4" height="4" fill="currentColor"/>
+            <rect x="24" y="30" width="4" height="4" fill="currentColor"/>
+            <rect x="30" y="30" width="4" height="4" fill="currentColor"/>
+          </svg>
+          <div class="empty-downloads-full-title">no ${state.activeTab} downloads</div>
+          <div class="empty-downloads-full-dots">
+            <span class="dot dot--empty-anim"></span>
+            <span class="dot dot--empty-anim"></span>
+            <span class="dot dot--empty-anim"></span>
+            <span class="dot dot--empty-anim"></span>
+            <span class="dot dot--empty-anim"></span>
+          </div>
+        </div>`;
     } else {
       downloads.forEach((download, i) => {
         downloadList.appendChild(createDownloadRow(download, i, downloads.length));
@@ -431,41 +421,8 @@ function FullApp() {
     return btn;
   }
 
-  function attachSettingsListeners() {
-    document.getElementById('btn-cancel-settings')?.addEventListener('click', () => {
-      state.showSettings = false;
-      renderBody();
-      startPolling();
-    });
-
-    document.getElementById('btn-save-settings')?.addEventListener('click', async () => {
-      const rpcUrl = document.getElementById('setting-rpc-url').value;
-      const secret = document.getElementById('setting-secret').value;
-      await saveConfig({ rpcUrl, secret });
-      state.config = { rpcUrl, secret, downloadPath: state.config.downloadPath };
-      state.showSettings = false;
-      loadData();
-    });
-
-    document.getElementById('btn-test-connection')?.addEventListener('click', async () => {
-      const resultEl = document.getElementById('test-result');
-      resultEl.className = '';
-      resultEl.textContent = 'testing...';
-      try {
-        const rpcUrl = document.getElementById('setting-rpc-url').value;
-        const secret = document.getElementById('setting-secret').value;
-        await testConnectionWithParams(rpcUrl, secret);
-        resultEl.className = 'test-success';
-        resultEl.textContent = 'connection successful!';
-      } catch (err) {
-        resultEl.className = 'test-fail';
-        resultEl.textContent = 'connection failed: ' + err.message;
-      }
-    });
-  }
-
   function attachHeaderListeners() {
-    document.getElementById('btn-settings').addEventListener('click', () => {
+    container.querySelector('#btn-settings').addEventListener('click', () => {
       state.showSettings = !state.showSettings;
       if (state.showSettings) {
         stopPolling();
@@ -476,9 +433,9 @@ function FullApp() {
       }
     });
 
-    document.getElementById('btn-refresh').addEventListener('click', loadData);
+    container.querySelector('#btn-refresh').addEventListener('click', loadData);
 
-    document.getElementById('btn-add').addEventListener('click', () => {
+    container.querySelector('#btn-add').addEventListener('click', () => {
       const url = prompt('Enter download URL:');
       if (url) {
         addDownload([url]).then(() => loadData()).catch(err => alert('Failed: ' + err.message));
@@ -488,7 +445,6 @@ function FullApp() {
 
   async function loadData() {
     if (state.loading && state.globalStat) {
-      // already have data, do silent refresh - no loading flash
     } else {
       state.loading = true;
     }
@@ -534,10 +490,6 @@ function FullApp() {
     stopPolling();
   });
 
-  if (!state.config) {
-    getConfig().then(c => { state.config = c; });
-  }
-
   renderBody();
   return container;
 }
@@ -577,3 +529,4 @@ app.dispatchEvent(new Event('mount'));
 window.addEventListener('beforeunload', () => {
   app.dispatchEvent(new Event('unmount'));
 });
+})();

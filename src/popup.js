@@ -1,51 +1,14 @@
 (function() {
-const DEFAULT_RPC_URL = 'http://localhost:6800/jsonrpc';
-
-async function getConfig() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get([
-      'aria2_rpc_url',
-      'aria2_rpc_secret',
-      'aria2_default_download_path',
-      'aria2_hijack_downloads'
-    ], (result) => {
-      resolve({
-        rpcUrl: result.aria2_rpc_url || DEFAULT_RPC_URL,
-        secret: result.aria2_rpc_secret || '',
-        downloadPath: result.aria2_default_download_path || '',
-        hijackDownloads: result.aria2_hijack_downloads || false,
-      });
-    });
-  });
-}
-
-function setHijackStatus(enabled) {
-  chrome.storage.local.set({ aria2_hijack_downloads: enabled });
-}
-
-async function callAria2(method, params = []) {
-  const config = await getConfig();
-  const secretToken = config.secret ? [`token:${config.secret}`] : [];
-  
-  const body = {
-    jsonrpc: '2.0',
-    id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-    method,
-    params: [...secretToken, ...params],
-  };
-
-  const response = await fetch(config.rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  const parsed = await response.json();
-  if (parsed.error) {
-    throw new Error(parsed.error.message || 'aria2 RPC error');
-  }
-  return parsed.result;
-}
+const {
+  getConfig,
+  setHijackStatus,
+  callAria2,
+  getAria2Status,
+  getFileName,
+  formatBytes,
+  formatSpeed,
+  escapeHtml,
+} = window.Aria2Shared;
 
 async function pauseDownload(gid) {
   return callAria2('aria2.pause', [gid]);
@@ -70,22 +33,11 @@ async function moveDownload(gid, pos, how) {
   return callAria2('aria2.changePosition', [gid, pos, how]);
 }
 
-async function getAria2Status() {
-  const tellKeys = [
-    'gid', 'status', 'totalLength', 'completedLength',
-    'downloadSpeed', 'uploadSpeed', 'files', 'connections',
-  ];
-  const [globalStat, active, waiting, stopped] = await Promise.all([
-    callAria2('aria2.getGlobalStat'),
-    callAria2('aria2.tellActive', [tellKeys]),
-    callAria2('aria2.tellWaiting', [0, 100, tellKeys]),
-    callAria2('aria2.tellStopped', [0, 100, tellKeys]),
-  ]);
-  return { globalStat, active, waiting, stopped };
-}
-
 function PopupApp() {
   let pollTimeout;
+  const POLL_FAST_MS = 1000;
+  const POLL_IDLE_MS = 2500;
+  const POLL_ERROR_MS = 5000;
 
   const container = document.createElement('div');
   container.className = 'app popup-mode';
@@ -185,8 +137,11 @@ function PopupApp() {
   }
 
   async function loadData() {
+    let nextDelay = POLL_IDLE_MS;
     try {
       const { globalStat, active, waiting, stopped } = await getAria2Status();
+      const activeCount = parseInt(globalStat.numActive, 10) || 0;
+      nextDelay = activeCount > 0 ? POLL_FAST_MS : POLL_IDLE_MS;
       
       const statActive = document.getElementById('stat-active');
       const statWaiting = document.getElementById('stat-waiting');
@@ -230,8 +185,8 @@ function PopupApp() {
         connStatus.textContent = 'connected';
         connStatus.className = 'connection-status connected';
       }
-      chrome.runtime.sendMessage({ type: 'UPDATE_BADGE', activeCount: parseInt(globalStat.numActive) || 0 });
     } catch (err) {
+      nextDelay = POLL_ERROR_MS;
       const connStatus = document.getElementById('connection-status');
       if (connStatus) {
         connStatus.textContent = 'disconnected';
@@ -242,7 +197,7 @@ function PopupApp() {
         listEl.innerHTML = '<div class="empty-state error">' + escapeHtml(err.message) + '</div>';
       }
     }
-    pollTimeout = setTimeout(loadData, 1000);
+    pollTimeout = setTimeout(loadData, nextDelay);
   }
 
   function createDownloadRow(download, waitingIndex, totalWaiting) {
@@ -319,32 +274,6 @@ function PopupApp() {
       dots += `<span class="dot ${i < filledDots ? 'filled' : ''}"></span>`;
     }
     return `<div class="dot-progress mini">${dots}</div>`;
-  }
-
-  function getFileName(download) {
-    if (download.files && download.files.length > 0) {
-      const path = download.files[0].path;
-      return path.split('/').pop() || path;
-    }
-    return download.gid;
-  }
-
-  function formatBytes(bytes) {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-  }
-
-  function formatSpeed(bytesPerSecond) {
-    return formatBytes(bytesPerSecond) + '/s';
-  }
-
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
   }
 
   container.addEventListener('mount', async () => {

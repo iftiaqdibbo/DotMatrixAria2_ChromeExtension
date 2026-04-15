@@ -1,95 +1,10 @@
-const DEFAULT_RPC_URL = 'http://localhost:6800/jsonrpc';
-
-const DEFAULT_SAFE_MODE_HOSTS = [
-  'gofile.io', '1fichier.com', 'pixeldrain.com', 'mediafire.com',
-  'mega.nz', 'ranoz.net', 'datanodes.to', 'bowfile.com',
-  'dl.free.fr', 'swisstransfer.com', 'freedlink.me', 'fileditch.com',
-  'uploadnow.io', 'wdho.ru', 'mixdrop.', 'chomikuj.pl',
-  'vikingfile.com', 'dayuploads.com', 'downmediaload.com', 'hexload.com',
-  '1cloudfile.com', 'usersdrive.com', 'megaup.net', 'clicknupload.org',
-  'dailyuploads.net', 'rapidgator.net', 'nitroflare.com', 'filebin.net',
-  'oshi.at',
-];
-
-async function getConfig() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get([
-      'aria2_rpc_url',
-      'aria2_rpc_secret',
-      'aria2_default_download_path',
-      'aria2_hijack_downloads',
-      'aria2_safe_mode',
-      'aria2_safe_mode_hosts'
-    ], (result) => {
-      resolve({
-        rpcUrl: result.aria2_rpc_url || DEFAULT_RPC_URL,
-        secret: result.aria2_rpc_secret || '',
-        downloadPath: result.aria2_default_download_path || '',
-        hijackDownloads: result.aria2_hijack_downloads || false,
-        safeMode: result.aria2_safe_mode !== false,
-        safeModeHosts: result.aria2_safe_mode_hosts || [...DEFAULT_SAFE_MODE_HOSTS],
-      });
-    });
-  });
-}
-
-function saveConfig(config) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set({
-      aria2_rpc_url: config.rpcUrl,
-      aria2_rpc_secret: config.secret,
-      aria2_default_download_path: config.downloadPath,
-      aria2_hijack_downloads: config.hijackDownloads,
-      aria2_safe_mode: config.safeMode,
-    }, resolve);
-  });
-}
-
-async function callAria2(method, params = []) {
-  const config = await getConfig();
-  const secretToken = config.secret ? [`token:${config.secret}`] : [];
-  
-  const body = {
-    jsonrpc: '2.0',
-    id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-    method,
-    params: [...secretToken, ...params],
-  };
-
-  const response = await fetch(config.rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  const parsed = await response.json();
-  if (parsed.error) {
-    throw new Error(parsed.error.message || 'aria2 RPC error');
-  }
-  return parsed.result;
-}
-
-async function testConnectionWithParams(rpcUrl, secret) {
-  const secretToken = secret ? [`token:${secret}`] : [];
-  const body = {
-    jsonrpc: '2.0',
-    id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-    method: 'aria2.getVersion',
-    params: secretToken,
-  };
-
-  const response = await fetch(rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  const parsed = await response.json();
-  if (parsed.error) {
-    throw new Error(parsed.error.message || 'aria2 RPC error');
-  }
-  return parsed.result;
-}
+const {
+  DEFAULT_SAFE_MODE_HOSTS,
+  getConfig,
+  saveConfig,
+  testConnectionWithParams,
+  escapeHtml,
+} = window.Aria2Shared;
 
 function OptionsApp(embedded) {
   let activeTab = 'general';
@@ -363,12 +278,6 @@ function OptionsApp(embedded) {
       switchTab(tab.dataset.tab);
     });
   });
-
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
 
   container.addEventListener('mount', async () => {
     const config = await getConfig();

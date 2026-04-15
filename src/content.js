@@ -108,7 +108,9 @@
           }
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      // JSON parse error - not a JSON response
+    }
     return found;
   }
   

@@ -71,16 +71,6 @@ function basename(filepath) {
   return result ? result[0] : filepath;
 }
 
-function dirname(filepath) {
-  const isWindows = /^[a-zA-Z]:\\|^\\|^\.\.?\\/.test(filepath);
-  if (isWindows) {
-    const result = filepath.match(/^(.+)\\[^\\]+$/);
-    return result ? result[1] : filepath;
-  }
-  const result = filepath.match(/^(.+)\/[^/]+$/);
-  return result ? result[1] : filepath;
-}
-
 async function rpcCall(method, params) {
   const { aria2_rpc_url, aria2_rpc_secret } = await chrome.storage.local.get([
     'aria2_rpc_url', 'aria2_rpc_secret'
@@ -109,6 +99,22 @@ async function rpcCall(method, params) {
     throw new Error(result.error.message);
   }
   return result.result;
+}
+
+let badgePollTimeout;
+async function updateBadgeFromAria2() {
+  let nextDelayMs = 5000;
+  try {
+    const globalStat = await rpcCall('aria2.getGlobalStat', []);
+    const activeCount = parseInt(globalStat.numActive, 10) || 0;
+    chrome.action.setBadgeText({ text: activeCount > 0 ? String(activeCount) : '' });
+    chrome.action.setBadgeBackgroundColor({ color: '#ff1a1a' });
+    nextDelayMs = activeCount > 0 ? 2000 : 5000;
+  } catch {
+    nextDelayMs = 10000;
+  }
+  clearTimeout(badgePollTimeout);
+  badgePollTimeout = setTimeout(updateBadgeFromAria2, nextDelayMs);
 }
 
 async function addUriToAria2(url, referer, cookies, filename, directory, extraOptions) {
@@ -190,7 +196,10 @@ chrome.runtime.onInstalled.addListener(() => {
       chrome.storage.local.set(defaults);
     }
   });
+  updateBadgeFromAria2();
 });
+
+updateBadgeFromAria2();
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'downloadWithAria2') {

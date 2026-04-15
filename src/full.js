@@ -47,7 +47,7 @@ function FullApp() {
   const POLL_FAST_MS = 1000;
   const POLL_IDLE_MS = 2500;
   const POLL_ERROR_MS = 5000;
-  let lastRenderSignature = '';
+  let lastDataSignature = '';
   let state = {
     activeTab: 'active',
     downloads: { active: [], waiting: [], stopped: [] },
@@ -56,6 +56,16 @@ function FullApp() {
     error: null,
     showSettings: false,
     pollTimeout: null,
+  };
+
+  // DOM element references for updates
+  let uiRefs = {
+    statActive: null,
+    statWaiting: null,
+    statStopped: null,
+    statSpeed: null,
+    tabButtons: {},
+    downloadList: null,
   };
 
   const container = document.createElement('div');
@@ -125,8 +135,255 @@ function FullApp() {
   footer.innerHTML = `<p class="footer-text">aria2 dashboard</p>`;
   container.appendChild(footer);
 
+  function initDashboard() {
+    bodyEl.innerHTML = '';
+
+    const dashboard = document.createElement('div');
+    dashboard.className = 'dashboard-layout';
+
+    const sidebar = document.createElement('div');
+    sidebar.className = 'sidebar';
+    sidebar.innerHTML = `
+      <div class="status-card">
+        <div class="status-card-inner">
+          <div class="status-dot status-dot--active"></div>
+          <div>
+            <h2>active</h2>
+            <p id="stat-active">0</p>
+          </div>
+        </div>
+      </div>
+      <div class="status-card">
+        <div class="status-card-inner">
+          <div class="status-dot status-dot--waiting"></div>
+          <div>
+            <h2>waiting</h2>
+            <p id="stat-waiting">0</p>
+          </div>
+        </div>
+      </div>
+      <div class="status-card">
+        <div class="status-card-inner">
+          <div class="status-dot status-dot--stopped"></div>
+          <div>
+            <h2>stopped</h2>
+            <p id="stat-stopped">0</p>
+          </div>
+        </div>
+      </div>
+      <div class="status-card">
+        <div class="status-card-inner">
+          <div class="status-dot status-dot--speed"></div>
+          <div>
+            <h2>download</h2>
+            <p id="stat-speed" class="speed-value speed--zero">0 B/s</p>
+          </div>
+        </div>
+      </div>
+    `;
+    uiRefs.statActive = sidebar.querySelector('#stat-active');
+    uiRefs.statWaiting = sidebar.querySelector('#stat-waiting');
+    uiRefs.statStopped = sidebar.querySelector('#stat-stopped');
+    uiRefs.statSpeed = sidebar.querySelector('#stat-speed');
+
+    const mainContent = document.createElement('div');
+    mainContent.className = 'main-content';
+
+    const tabs = document.createElement('div');
+    tabs.className = 'tabs';
+    ['active', 'waiting', 'stopped'].forEach(tab => {
+      const tabBtn = document.createElement('button');
+      tabBtn.className = `tab ${state.activeTab === tab ? 'tab--active' : ''}`;
+      tabBtn.dataset.tab = tab;
+      tabBtn.innerHTML = `
+        <span class="tab-dot tab-dot--${tab}"></span>
+        ${tab}
+        <span class="tab-count">0</span>
+      `;
+      tabBtn.addEventListener('click', () => {
+        state.activeTab = tab;
+        updateTabs();
+        updateDownloadList();
+      });
+      tabs.appendChild(tabBtn);
+      uiRefs.tabButtons[tab] = tabBtn;
+    });
+
+    const downloadList = document.createElement('div');
+    downloadList.className = 'download-list';
+    uiRefs.downloadList = downloadList;
+
+    mainContent.appendChild(tabs);
+    mainContent.appendChild(downloadList);
+
+    dashboard.appendChild(sidebar);
+    dashboard.appendChild(mainContent);
+    bodyEl.appendChild(dashboard);
+  }
+
+  function updateStats() {
+    if (!uiRefs.statActive) return;
+    const speed = parseInt(state.globalStat?.downloadSpeed || 0);
+    uiRefs.statActive.textContent = state.globalStat?.numActive || 0;
+    uiRefs.statWaiting.textContent = state.globalStat?.numWaiting || 0;
+    uiRefs.statStopped.textContent = state.globalStat?.numStopped || 0;
+    uiRefs.statSpeed.textContent = formatSpeed(speed);
+    uiRefs.statSpeed.className = `speed-value ${speed > 0 ? 'speed--active' : 'speed--zero'}`;
+  }
+
+  function updateTabs() {
+    ['active', 'waiting', 'stopped'].forEach(tab => {
+      const btn = uiRefs.tabButtons[tab];
+      const count = state.downloads[tab]?.length || 0;
+      btn.className = `tab ${state.activeTab === tab ? 'tab--active' : ''}`;
+      btn.querySelector('.tab-count').textContent = count;
+    });
+  }
+
+  function updateDownloadList() {
+    const downloads = state.downloads[state.activeTab] || [];
+    const listEl = uiRefs.downloadList;
+    if (!listEl) return;
+
+    if (downloads.length === 0) {
+      if (listEl.dataset.empty !== 'true') {
+        listEl.innerHTML = `
+          <div class="empty-downloads-full">
+            <svg class="empty-logo" viewBox="0 0 42 42" width="64" height="64">
+              <rect x="6" y="6" width="4" height="4" fill="currentColor"/>
+              <rect x="12" y="6" width="4" height="4" fill="currentColor"/>
+              <rect x="18" y="6" width="4" height="4" fill="currentColor"/>
+              <rect x="6" y="12" width="4" height="4" fill="currentColor"/>
+              <rect x="18" y="12" width="4" height="4" fill="currentColor"/>
+              <rect x="24" y="12" width="4" height="4" fill="currentColor"/>
+              <rect x="30" y="12" width="4" height="4" fill="currentColor"/>
+              <rect x="6" y="18" width="4" height="4" fill="currentColor"/>
+              <rect x="12" y="18" width="4" height="4" fill="currentColor"/>
+              <rect x="18" y="18" width="4" height="4" fill="currentColor"/>
+              <rect x="24" y="18" width="4" height="4" fill="currentColor"/>
+              <rect x="30" y="18" width="4" height="4" fill="currentColor"/>
+              <rect x="6" y="24" width="4" height="4" fill="currentColor"/>
+              <rect x="18" y="24" width="4" height="4" fill="currentColor"/>
+              <rect x="30" y="24" width="4" height="4" fill="currentColor"/>
+              <rect x="6" y="30" width="4" height="4" fill="currentColor"/>
+              <rect x="12" y="30" width="4" height="4" fill="currentColor"/>
+              <rect x="18" y="30" width="4" height="4" fill="currentColor"/>
+              <rect x="24" y="30" width="4" height="4" fill="currentColor"/>
+              <rect x="30" y="30" width="4" height="4" fill="currentColor"/>
+            </svg>
+            <div class="empty-downloads-full-title">no ${state.activeTab} downloads</div>
+            <div class="empty-downloads-full-dots">
+              <span class="dot dot--empty-anim"></span>
+              <span class="dot dot--empty-anim"></span>
+              <span class="dot dot--empty-anim"></span>
+              <span class="dot dot--empty-anim"></span>
+              <span class="dot dot--empty-anim"></span>
+            </div>
+          </div>`;
+        listEl.dataset.empty = 'true';
+      }
+      return;
+    }
+
+    // Clear empty state if present
+    if (listEl.dataset.empty === 'true') {
+      listEl.innerHTML = '';
+    }
+    listEl.dataset.empty = 'false';
+
+    // Get existing rows
+    const existingRows = Array.from(listEl.querySelectorAll('.download-row'));
+    const existingGids = new Map(existingRows.map(row => [row.dataset.gid, row]));
+    const newGids = new Set(downloads.map(d => d.gid));
+
+    // Remove rows that no longer exist
+    existingRows.forEach(row => {
+      if (!newGids.has(row.dataset.gid)) {
+        row.remove();
+      }
+    });
+
+    // Add or update rows
+    downloads.forEach((download, index) => {
+      const existingRow = existingGids.get(download.gid);
+      if (existingRow) {
+        // Update existing row in place
+        updateDownloadRow(existingRow, download, index, downloads.length);
+      } else {
+        // Create new row
+        const row = createDownloadRow(download, index, downloads.length);
+        row.style.animationDelay = `${index * 0.04}s`;
+        listEl.appendChild(row);
+      }
+    });
+  }
+
+  function updateDownloadRow(row, download, index, totalInTab) {
+    const total = parseInt(download.totalLength) || 1;
+    const completed = parseInt(download.completedLength);
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const speed = parseInt(download.downloadSpeed) || 0;
+
+    // Update text content
+    row.querySelector('.download-title').textContent = getFileName(download);
+    row.querySelector('.status-badge').textContent = download.status;
+    row.querySelector('.status-badge').className = `status-badge status-badge--${download.status}`;
+
+    const details = row.querySelector('.download-details');
+    details.innerHTML = `
+      <span><strong>${formatBytes(completed)}</strong> / ${formatBytes(total)}</span>
+      <span>speed: <strong>${formatSpeed(speed)}</strong></span>
+      <span>connections: <strong>${download.connections}</strong></span>
+    `;
+
+    // Update progress bar
+    const progressBar = row.querySelector('.dot-progress');
+    const dots = progressBar.querySelectorAll('.dot');
+    const filledCount = Math.round((percent / 100) * dots.length);
+    dots.forEach((dot, i) => {
+      dot.className = `dot ${i < filledCount ? 'dot--filled' : ''}`;
+    });
+    row.querySelector('.progress-text').textContent = `${percent}%`;
+
+    // Update active state
+    row.className = 'download-row' + (download.status === 'active' ? ' row--active' : '');
+
+    // Update action buttons visibility
+    const actionsDiv = row.querySelector('.download-actions');
+    const canMoveUp = state.activeTab === 'waiting' && index > 0;
+    const canMoveDown = state.activeTab === 'waiting' && index < totalInTab - 1;
+
+    // Only rebuild actions if the button configuration changed
+    const hasMoveUp = !!actionsDiv.querySelector('.btn-move-up');
+    const hasMoveDown = !!actionsDiv.querySelector('.btn-move-down');
+    const hasPause = !!actionsDiv.querySelector('.btn-pause');
+    const hasResume = !!actionsDiv.querySelector('.btn-resume');
+    const hasStop = !!actionsDiv.querySelector('.btn-stop');
+    const hasDelete = !!actionsDiv.querySelector('.btn-delete');
+
+    const needsMoveUp = canMoveUp;
+    const needsMoveDown = canMoveDown;
+    const needsPause = download.status === 'active';
+    const needsResume = download.status === 'paused';
+    const needsStop = download.status === 'active' || download.status === 'waiting' || download.status === 'paused';
+    const needsDelete = download.status === 'complete' || download.status === 'error' || download.status === 'removed';
+
+    if (hasMoveUp !== needsMoveUp || hasMoveDown !== needsMoveDown ||
+        hasPause !== needsPause || hasResume !== needsResume ||
+        hasStop !== needsStop || hasDelete !== needsDelete) {
+      actionsDiv.innerHTML = '';
+      if (needsMoveUp) actionsDiv.appendChild(createActionButton('btn-move-up', download.gid, '▲ up', 'btn-dot-move'));
+      if (needsMoveDown) actionsDiv.appendChild(createActionButton('btn-move-down', download.gid, '▼ down', 'btn-dot-move'));
+      if (needsPause) actionsDiv.appendChild(createActionButton('btn-pause', download.gid, 'pause', 'btn-dot-pause'));
+      if (needsResume) actionsDiv.appendChild(createActionButton('btn-resume', download.gid, 'resume', 'btn-dot-resume'));
+      if (needsStop) actionsDiv.appendChild(createActionButton('btn-stop', download.gid, 'stop', 'btn-dot-stop'));
+      if (needsDelete) actionsDiv.appendChild(createActionButton('btn-delete', download.gid, 'remove', 'btn-dot-delete'));
+    }
+  }
+
   function renderBody() {
     bodyEl.innerHTML = '';
+    uiRefs = { statActive: null, statWaiting: null, statStopped: null, statSpeed: null, tabButtons: {}, downloadList: null };
 
     if (state.showSettings) {
       const settingsPanel = document.createElement('div');
@@ -139,7 +396,10 @@ function FullApp() {
       if (closeBtn) {
         closeBtn.addEventListener('click', () => {
           state.showSettings = false;
-          renderBody();
+          initDashboard();
+          updateStats();
+          updateTabs();
+          updateDownloadList();
           startPolling();
         });
       }
@@ -169,131 +429,10 @@ function FullApp() {
       return;
     }
 
-    const dashboard = document.createElement('div');
-    dashboard.className = 'dashboard-layout';
-
-    const sidebar = document.createElement('div');
-    sidebar.className = 'sidebar';
-    sidebar.innerHTML = `
-      <div class="status-card">
-        <div class="status-card-inner">
-          <div class="status-dot status-dot--active"></div>
-          <div>
-            <h2>active</h2>
-            <p>${state.globalStat?.numActive || 0}</p>
-          </div>
-        </div>
-      </div>
-      <div class="status-card">
-        <div class="status-card-inner">
-          <div class="status-dot status-dot--waiting"></div>
-          <div>
-            <h2>waiting</h2>
-            <p>${state.globalStat?.numWaiting || 0}</p>
-          </div>
-        </div>
-      </div>
-      <div class="status-card">
-        <div class="status-card-inner">
-          <div class="status-dot status-dot--stopped"></div>
-          <div>
-            <h2>stopped</h2>
-            <p>${state.globalStat?.numStopped || 0}</p>
-          </div>
-        </div>
-      </div>
-      <div class="status-card">
-        <div class="status-card-inner">
-          <div class="status-dot status-dot--speed"></div>
-          <div>
-            <h2>download</h2>
-            <p class="speed-value ${parseInt(state.globalStat?.downloadSpeed || 0) > 0 ? 'speed--active' : 'speed--zero'}">${formatSpeed(state.globalStat?.downloadSpeed)}</p>
-          </div>
-        </div>
-      </div>
-    `;
-
-    const mainContent = document.createElement('div');
-    mainContent.className = 'main-content';
-
-    const tabs = document.createElement('div');
-    tabs.className = 'tabs';
-    ['active', 'waiting', 'stopped'].forEach(tab => {
-      const count = state.downloads[tab]?.length || 0;
-      const isActive = state.activeTab === tab;
-      const tabBtn = document.createElement('button');
-      tabBtn.className = `tab ${isActive ? 'tab--active' : ''}`;
-      tabBtn.innerHTML = `
-        <span class="tab-dot tab-dot--${tab}"></span>
-        ${tab}
-        <span class="tab-count">${count}</span>
-      `;
-      tabBtn.addEventListener('click', () => {
-        state.activeTab = tab;
-        renderBody();
-      });
-      tabs.appendChild(tabBtn);
-    });
-
-    const downloadList = document.createElement('div');
-    downloadList.className = 'download-list';
-
-    const downloads = state.downloads[state.activeTab] || [];
-    if (downloads.length === 0) {
-      downloadList.innerHTML = `
-        <div class="empty-downloads-full">
-          <svg class="empty-logo" viewBox="0 0 42 42" width="64" height="64">
-            <rect x="6" y="6" width="4" height="4" fill="currentColor"/>
-            <rect x="12" y="6" width="4" height="4" fill="currentColor"/>
-            <rect x="18" y="6" width="4" height="4" fill="currentColor"/>
-            <rect x="6" y="12" width="4" height="4" fill="currentColor"/>
-            <rect x="18" y="12" width="4" height="4" fill="currentColor"/>
-            <rect x="24" y="12" width="4" height="4" fill="currentColor"/>
-            <rect x="30" y="12" width="4" height="4" fill="currentColor"/>
-            <rect x="6" y="18" width="4" height="4" fill="currentColor"/>
-            <rect x="12" y="18" width="4" height="4" fill="currentColor"/>
-            <rect x="18" y="18" width="4" height="4" fill="currentColor"/>
-            <rect x="24" y="18" width="4" height="4" fill="currentColor"/>
-            <rect x="30" y="18" width="4" height="4" fill="currentColor"/>
-            <rect x="6" y="24" width="4" height="4" fill="currentColor"/>
-            <rect x="18" y="24" width="4" height="4" fill="currentColor"/>
-            <rect x="30" y="24" width="4" height="4" fill="currentColor"/>
-            <rect x="6" y="30" width="4" height="4" fill="currentColor"/>
-            <rect x="12" y="30" width="4" height="4" fill="currentColor"/>
-            <rect x="18" y="30" width="4" height="4" fill="currentColor"/>
-            <rect x="24" y="30" width="4" height="4" fill="currentColor"/>
-            <rect x="30" y="30" width="4" height="4" fill="currentColor"/>
-          </svg>
-          <div class="empty-downloads-full-title">no ${state.activeTab} downloads</div>
-          <div class="empty-downloads-full-dots">
-            <span class="dot dot--empty-anim"></span>
-            <span class="dot dot--empty-anim"></span>
-            <span class="dot dot--empty-anim"></span>
-            <span class="dot dot--empty-anim"></span>
-            <span class="dot dot--empty-anim"></span>
-          </div>
-        </div>`;
-    } else {
-      const existingGids = new Set(
-        Array.from(document.querySelectorAll('.download-row[data-gid]')).map(el => el.dataset.gid)
-      );
-      downloads.forEach((download, i) => {
-        const row = createDownloadRow(download, i, downloads.length);
-        if (!existingGids.has(download.gid)) {
-          row.style.animationDelay = `${i * 0.04}s`;
-        } else {
-          row.style.animation = 'none';
-        }
-        downloadList.appendChild(row);
-      });
-    }
-
-    mainContent.appendChild(tabs);
-    mainContent.appendChild(downloadList);
-
-    dashboard.appendChild(sidebar);
-    dashboard.appendChild(mainContent);
-    bodyEl.appendChild(dashboard);
+    initDashboard();
+    updateStats();
+    updateTabs();
+    updateDownloadList();
   }
 
   function createDownloadRow(download, index, totalInTab) {
@@ -411,17 +550,6 @@ function FullApp() {
   }
 
   async function loadData() {
-    const previousSignature = JSON.stringify({
-      activeTab: state.activeTab,
-      showSettings: state.showSettings,
-      error: state.error,
-      globalStat: state.globalStat,
-      active: state.downloads.active.map(d => [d.gid, d.status, d.completedLength, d.downloadSpeed, d.connections]),
-      waiting: state.downloads.waiting.map(d => [d.gid, d.status, d.completedLength, d.downloadSpeed, d.connections]),
-      stopped: state.downloads.stopped.map(d => [d.gid, d.status, d.completedLength]),
-    });
-    state.loading = true;
-
     try {
       const data = await getAria2Status();
       state.downloads = {
@@ -436,19 +564,27 @@ function FullApp() {
       state.error = err.message;
       state.loading = false;
     }
-    const nextSignature = JSON.stringify({
-      activeTab: state.activeTab,
-      showSettings: state.showSettings,
-      error: state.error,
-      globalStat: state.globalStat,
-      active: state.downloads.active.map(d => [d.gid, d.status, d.completedLength, d.downloadSpeed, d.connections]),
-      waiting: state.downloads.waiting.map(d => [d.gid, d.status, d.completedLength, d.downloadSpeed, d.connections]),
-      stopped: state.downloads.stopped.map(d => [d.gid, d.status, d.completedLength]),
+
+    // Only full re-render on initial load or tab/settings change
+    // Otherwise do selective updates
+    const dataSignature = JSON.stringify({
+      active: state.downloads.active.map(d => d.gid),
+      waiting: state.downloads.waiting.map(d => d.gid),
+      stopped: state.downloads.stopped.map(d => d.gid),
     });
-    if (nextSignature !== previousSignature || nextSignature !== lastRenderSignature) {
-      lastRenderSignature = nextSignature;
+
+    const needsFullRender = !uiRefs.statActive || dataSignature !== lastDataSignature;
+
+    if (needsFullRender) {
+      lastDataSignature = dataSignature;
       renderBody();
+    } else {
+      // Selective updates - no DOM rebuild
+      updateStats();
+      updateTabs();
+      updateDownloadList();
     }
+
     if (!state.showSettings) {
       const activeCount = parseInt(state.globalStat?.numActive || '0', 10) || 0;
       const delay = state.error ? POLL_ERROR_MS : (activeCount > 0 ? POLL_FAST_MS : POLL_IDLE_MS);

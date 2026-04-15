@@ -93,6 +93,10 @@ async function rpcCall(method, params) {
     body: JSON.stringify(body),
   });
 
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
   const result = await response.json();
   if (result.error) {
     console.error('[Aria2] RPC error:', JSON.stringify(result.error, null, 2));

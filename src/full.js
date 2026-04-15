@@ -207,7 +207,7 @@ function FullApp() {
           <div class="status-dot status-dot--speed"></div>
           <div>
             <h2>download</h2>
-            <p class="speed-value">${formatSpeed(state.globalStat?.downloadSpeed)}</p>
+            <p class="speed-value ${parseInt(state.globalStat?.downloadSpeed || 0) > 0 ? 'speed--active' : 'speed--zero'}">${formatSpeed(state.globalStat?.downloadSpeed)}</p>
           </div>
         </div>
       </div>
@@ -274,8 +274,17 @@ function FullApp() {
           </div>
         </div>`;
     } else {
+      const existingGids = new Set(
+        Array.from(document.querySelectorAll('.download-row[data-gid]')).map(el => el.dataset.gid)
+      );
       downloads.forEach((download, i) => {
-        downloadList.appendChild(createDownloadRow(download, i, downloads.length));
+        const row = createDownloadRow(download, i, downloads.length);
+        if (!existingGids.has(download.gid)) {
+          row.style.animationDelay = `${i * 0.04}s`;
+        } else {
+          row.style.animation = 'none';
+        }
+        downloadList.appendChild(row);
       });
     }
 
@@ -296,7 +305,7 @@ function FullApp() {
     const canMoveDown = state.activeTab === 'waiting' && index < totalInTab - 1;
 
     const row = document.createElement('div');
-    row.className = 'download-row';
+    row.className = 'download-row' + (download.status === 'active' ? ' row--active' : '');
     row.dataset.gid = download.gid;
 
     const progressBar = document.createElement('div');
@@ -411,10 +420,7 @@ function FullApp() {
       waiting: state.downloads.waiting.map(d => [d.gid, d.status, d.completedLength, d.downloadSpeed, d.connections]),
       stopped: state.downloads.stopped.map(d => [d.gid, d.status, d.completedLength]),
     });
-    if (state.loading && state.globalStat) {
-    } else {
-      state.loading = true;
-    }
+    state.loading = true;
 
     try {
       const data = await getAria2Status();

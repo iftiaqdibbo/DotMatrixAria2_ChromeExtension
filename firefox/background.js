@@ -386,12 +386,4 @@ api.runtime.onMessage.addListener((request, sender, sendResponse) => {
     })();
     return true;
   }
-
-  if (request.type === 'UPDATE_BADGE') {
-    const count = request.activeCount || 0;
-    api.action.setBadgeText({ text: count > 0 ? String(count) : '' });
-    api.action.setBadgeBackgroundColor({ color: '#ff1a1a' });
-    sendResponse({ success: true });
-    return true;
-  }
 });

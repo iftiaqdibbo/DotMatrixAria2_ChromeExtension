@@ -171,11 +171,20 @@ function PopupApp() {
               <div class="empty-downloads-text">idle</div>
             </div>`;
         } else {
+          const existingGids = new Set(
+            Array.from(listEl.querySelectorAll('[data-gid]')).map(el => el.dataset.gid)
+          );
           listEl.innerHTML = '';
           allDownloads.forEach((d, i) => {
             const waitingIndex = i - active.length;
-            const isWaiting = d.status === 'waiting' || d.status === 'paused';
-            listEl.appendChild(createDownloadRow(d, isWaiting ? waitingIndex : -1, waiting.length));
+            const isWaiting = i >= active.length;
+            const row = createDownloadRow(d, isWaiting ? waitingIndex : -1, waiting.length);
+            if (!existingGids.has(d.gid)) {
+              row.style.animationDelay = `${i * 0.04}s`;
+            } else {
+              row.style.animation = 'none';
+            }
+            listEl.appendChild(row);
           });
         }
       }
@@ -208,7 +217,7 @@ function PopupApp() {
     const canMoveDown = waitingIndex >= 0 && waitingIndex < totalWaiting - 1;
     
     const row = document.createElement('div');
-    row.className = 'download-item popup-item';
+    row.className = 'download-item popup-item' + (download.status === 'active' ? ' row--active' : '');
     row.innerHTML = `
       <div class="download-row-content">
         <div class="download-info">

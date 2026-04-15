@@ -49,11 +49,71 @@ A browser extension for managing aria2 downloads with a sleek dot-matrix aesthet
 2. Extract it
 3. From step 2-5 from above
 
+## Install aria2
+
+If you do not already have aria2 installed, use one of the options below.
+
+### Linux
+
+- Arch Linux / CachyOS:
+  ```bash
+  sudo pacman -S aria2
+  ```
+- Debian / Ubuntu:
+  ```bash
+  sudo apt update && sudo apt install -y aria2
+  ```
+- Fedora:
+  ```bash
+  sudo dnf install -y aria2
+  ```
+
+### macOS
+
+Install with Homebrew:
+```bash
+brew install aria2
+```
+
+### Windows
+
+- Install with Winget:
+  ```powershell
+  winget install aria2.aria2
+  ```
+- Or with Chocolatey:
+  ```powershell
+  choco install aria2
+  ```
+
+### Start aria2 with RPC enabled (required)
+
+Quick start:
+```bash
+aria2c --enable-rpc --rpc-listen-all=false --rpc-listen-port=6800 --rpc-secret="change-me"
+```
+
+- Extension default RPC URL: `http://localhost:6800/jsonrpc`
+- Put the same secret in extension options (`Secret Token`)
+
+Optional persistent config (`aria2.conf`):
+```ini
+enable-rpc=true
+rpc-listen-all=false
+rpc-listen-port=6800
+rpc-secret=change-me
+```
+
+Then start aria2 with:
+```bash
+aria2c --conf-path=/path/to/aria2.conf
+```
+
 ## Configuration
 
 1. Make sure aria2 is running with RPC enabled:
    ```bash
-   aria2c --enable-rpc --rpc-listen-port=6800
+   aria2c --enable-rpc --rpc-listen-all=false --rpc-listen-port=6800
    ```
 
 2. Click the extension icon and open Options

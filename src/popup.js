@@ -159,14 +159,14 @@ function PopupApp() {
           listEl.innerHTML = `
             <div class="empty-downloads">
               <div class="empty-downloads-dots">
-                <span class="dot dot--empty-anim" style="animation-delay: 0s"></span>
-                <span class="dot dot--empty-anim" style="animation-delay: 0.15s"></span>
-                <span class="dot dot--empty-anim" style="animation-delay: 0.3s"></span>
-                <span class="dot dot--empty-anim" style="animation-delay: 0.45s"></span>
-                <span class="dot dot--empty-anim" style="animation-delay: 0.6s"></span>
-                <span class="dot dot--empty-anim" style="animation-delay: 0.75s"></span>
-                <span class="dot dot--empty-anim" style="animation-delay: 0.9s"></span>
-                <span class="dot dot--empty-anim" style="animation-delay: 1.05s"></span>
+                <span class="dot dot--empty-anim"></span>
+                <span class="dot dot--empty-anim"></span>
+                <span class="dot dot--empty-anim"></span>
+                <span class="dot dot--empty-anim"></span>
+                <span class="dot dot--empty-anim"></span>
+                <span class="dot dot--empty-anim"></span>
+                <span class="dot dot--empty-anim"></span>
+                <span class="dot dot--empty-anim"></span>
               </div>
               <div class="empty-downloads-text">idle</div>
             </div>`;

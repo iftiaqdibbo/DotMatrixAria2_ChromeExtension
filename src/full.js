@@ -47,6 +47,7 @@ function FullApp() {
   const POLL_FAST_MS = 1000;
   const POLL_IDLE_MS = 2500;
   const POLL_ERROR_MS = 5000;
+  let lastRenderSignature = '';
   let state = {
     activeTab: 'active',
     downloads: { active: [], waiting: [], stopped: [] },
@@ -401,6 +402,15 @@ function FullApp() {
   }
 
   async function loadData() {
+    const previousSignature = JSON.stringify({
+      activeTab: state.activeTab,
+      showSettings: state.showSettings,
+      error: state.error,
+      globalStat: state.globalStat,
+      active: state.downloads.active.map(d => [d.gid, d.status, d.completedLength, d.downloadSpeed, d.connections]),
+      waiting: state.downloads.waiting.map(d => [d.gid, d.status, d.completedLength, d.downloadSpeed, d.connections]),
+      stopped: state.downloads.stopped.map(d => [d.gid, d.status, d.completedLength]),
+    });
     if (state.loading && state.globalStat) {
     } else {
       state.loading = true;
@@ -420,7 +430,19 @@ function FullApp() {
       state.error = err.message;
       state.loading = false;
     }
-    renderBody();
+    const nextSignature = JSON.stringify({
+      activeTab: state.activeTab,
+      showSettings: state.showSettings,
+      error: state.error,
+      globalStat: state.globalStat,
+      active: state.downloads.active.map(d => [d.gid, d.status, d.completedLength, d.downloadSpeed, d.connections]),
+      waiting: state.downloads.waiting.map(d => [d.gid, d.status, d.completedLength, d.downloadSpeed, d.connections]),
+      stopped: state.downloads.stopped.map(d => [d.gid, d.status, d.completedLength]),
+    });
+    if (nextSignature !== previousSignature || nextSignature !== lastRenderSignature) {
+      lastRenderSignature = nextSignature;
+      renderBody();
+    }
     if (!state.showSettings) {
       const activeCount = parseInt(state.globalStat?.numActive || '0', 10) || 0;
       const delay = state.error ? POLL_ERROR_MS : (activeCount > 0 ? POLL_FAST_MS : POLL_IDLE_MS);

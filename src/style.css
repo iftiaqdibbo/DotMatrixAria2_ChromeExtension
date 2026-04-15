@@ -435,12 +435,46 @@ input:focus + .toggle-slider {
   height: 7px;
   border-radius: 50%;
   background: var(--border);
-  animation: empty-dot-pulse 1.4s ease-in-out infinite;
+  animation-name: empty-dot-chase;
+  animation-duration: calc(var(--dot-count, 8) * var(--dot-step, 0.16s));
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-direction: reverse;
+  animation-delay: calc(var(--i, 0) * var(--dot-step, 0.16s) * -1);
+  will-change: transform, opacity, background-color, box-shadow;
 }
 
-@keyframes empty-dot-pulse {
-  0%, 100% { background: var(--border); box-shadow: none; }
-  50% { background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+@keyframes empty-dot-chase {
+  0% {
+    background: var(--border);
+    box-shadow: none;
+    opacity: 0.4;
+    transform: translateY(1px);
+  }
+  10% {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+  22% {
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+  34% {
+    background: var(--border);
+    box-shadow: none;
+    opacity: 0.4;
+    transform: translateY(1px);
+  }
+  100% {
+    background: var(--border);
+    box-shadow: none;
+    opacity: 0.4;
+    transform: translateY(1px);
+  }
 }
 
 .empty-downloads {
@@ -456,7 +490,18 @@ input:focus + .toggle-slider {
   display: flex;
   gap: 6px;
   justify-content: center;
+  --dot-count: 8;
+  --dot-step: 0.16s;
 }
+
+.empty-downloads-dots .dot--empty-anim:nth-child(1) { --i: 7; }
+.empty-downloads-dots .dot--empty-anim:nth-child(2) { --i: 6; }
+.empty-downloads-dots .dot--empty-anim:nth-child(3) { --i: 5; }
+.empty-downloads-dots .dot--empty-anim:nth-child(4) { --i: 4; }
+.empty-downloads-dots .dot--empty-anim:nth-child(5) { --i: 3; }
+.empty-downloads-dots .dot--empty-anim:nth-child(6) { --i: 2; }
+.empty-downloads-dots .dot--empty-anim:nth-child(7) { --i: 1; }
+.empty-downloads-dots .dot--empty-anim:nth-child(8) { --i: 0; }
 
 .empty-downloads-text {
   font-family: 'Space Mono', monospace;
@@ -498,7 +543,15 @@ input:focus + .toggle-slider {
   display: flex;
   gap: 8px;
   justify-content: center;
+  --dot-count: 5;
+  --dot-step: 0.2s;
 }
+
+.empty-downloads-full-dots .dot--empty-anim:nth-child(1) { --i: 4; }
+.empty-downloads-full-dots .dot--empty-anim:nth-child(2) { --i: 3; }
+.empty-downloads-full-dots .dot--empty-anim:nth-child(3) { --i: 2; }
+.empty-downloads-full-dots .dot--empty-anim:nth-child(4) { --i: 1; }
+.empty-downloads-full-dots .dot--empty-anim:nth-child(5) { --i: 0; }
 
 .empty-state {
   color: var(--text-muted);

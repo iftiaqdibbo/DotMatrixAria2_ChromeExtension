@@ -1,20 +1,21 @@
-const DEFAULT_RPC_URL = 'http://localhost:6800/jsonrpc';
+const DEFAULT_RPC_URL = "http://localhost:6800/jsonrpc";
 
 const downloadItems = {};
 const capturedIds = new Set();
 const interceptedUrls = new Set();
 
-const api = typeof browser !== 'undefined' ? browser : chrome;
+const api = typeof browser !== "undefined" ? browser : chrome;
 
 function formatCookies(cookies) {
+  if (!cookies) return "";
   return cookies.reduce((acc, cookie) => {
     return `${acc}${cookie.name}=${cookie.value};`;
   }, "");
 }
 
 async function getCookies(url, storeId) {
-  if (!url || url === 'about:blank') {
-    return '';
+  if (!url || url === "about:blank") {
+    return "";
   }
   try {
     const details = { url: url };
@@ -24,21 +25,23 @@ async function getCookies(url, storeId) {
     const cookies = await api.cookies.getAll(details);
     return formatCookies(cookies);
   } catch (e) {
-    return '';
+    return "";
   }
 }
 
 async function getCookiesForUrls(urls, storeId) {
-  const allCookies = await Promise.all(urls.map(url => getCookies(url, storeId)));
+  const allCookies = await Promise.all(
+    urls.map((url) => getCookies(url, storeId)),
+  );
   const seen = new Set();
-  let combined = '';
+  let combined = "";
   for (const cookieStr of allCookies) {
     if (!cookieStr) continue;
-    cookieStr.split(';').forEach(part => {
+    cookieStr.split(";").forEach((part) => {
       const trimmed = part.trim();
       if (trimmed && !seen.has(trimmed)) {
         seen.add(trimmed);
-        combined += trimmed + ';';
+        combined += trimmed + ";";
       }
     });
   }
@@ -51,6 +54,7 @@ async function findCurrentTab() {
 }
 
 function basename(filepath) {
+  if (!filepath) return "";
   const isWindows = /^[a-zA-Z]:\\|^\\|^\.\.?\\/.test(filepath);
   const result = isWindows
     ? filepath.match(/[^\\]+$/)
@@ -60,29 +64,30 @@ function basename(filepath) {
 
 async function rpcCall(method, params) {
   const { aria2_rpc_url, aria2_rpc_secret } = await api.storage.local.get([
-    'aria2_rpc_url', 'aria2_rpc_secret'
+    "aria2_rpc_url",
+    "aria2_rpc_secret",
   ]);
   const rpcUrl = aria2_rpc_url || DEFAULT_RPC_URL;
   const secretToken = aria2_rpc_secret ? [`token:${aria2_rpc_secret}`] : [];
 
   const body = {
-    jsonrpc: '2.0',
+    jsonrpc: "2.0",
     id: Date.now().toString(),
     method: method,
     params: [...secretToken, ...params],
   };
 
-  console.log('[Aria2] RPC call:', method, JSON.stringify(params, null, 2));
+  console.log("[Aria2] RPC call:", method, JSON.stringify(params, null, 2));
 
   const response = await fetch(rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
   const result = await response.json();
   if (result.error) {
-    console.error('[Aria2] RPC error:', JSON.stringify(result.error, null, 2));
+    console.error("[Aria2] RPC error:", JSON.stringify(result.error, null, 2));
     throw new Error(result.error.message);
   }
   return result.result;
@@ -92,10 +97,12 @@ let badgePollTimeout;
 async function updateBadgeFromAria2() {
   let nextDelayMs = 5000;
   try {
-    const globalStat = await rpcCall('aria2.getGlobalStat', []);
+    const globalStat = await rpcCall("aria2.getGlobalStat", []);
     const activeCount = parseInt(globalStat.numActive, 10) || 0;
-    api.action.setBadgeText({ text: activeCount > 0 ? String(activeCount) : '' });
-    api.action.setBadgeBackgroundColor({ color: '#ff1a1a' });
+    api.action.setBadgeText({
+      text: activeCount > 0 ? String(activeCount) : "",
+    });
+    api.action.setBadgeBackgroundColor({ color: "#ff1a1a" });
     nextDelayMs = activeCount > 0 ? 2000 : 5000;
   } catch {
     nextDelayMs = 10000;
@@ -104,9 +111,16 @@ async function updateBadgeFromAria2() {
   badgePollTimeout = setTimeout(updateBadgeFromAria2, nextDelayMs);
 }
 
-async function addUriToAria2(url, referer, cookies, filename, directory, extraOptions) {
+async function addUriToAria2(
+  url,
+  referer,
+  cookies,
+  filename,
+  directory,
+  extraOptions,
+) {
   if (interceptedUrls.has(url)) {
-    console.log('[Aria2] Skipping duplicate URL:', url);
+    console.log("[Aria2] Skipping duplicate URL:", url);
     return null;
   }
   interceptedUrls.add(url);
@@ -115,7 +129,9 @@ async function addUriToAria2(url, referer, cookies, filename, directory, extraOp
   const options = {};
   options.header = [`Referer: ${referer}`, `Cookie: ${cookies}`];
 
-  const { aria2_default_download_path } = await api.storage.local.get(['aria2_default_download_path']);
+  const { aria2_default_download_path } = await api.storage.local.get([
+    "aria2_default_download_path",
+  ]);
   if (directory) {
     options.dir = directory;
   } else if (aria2_default_download_path) {
@@ -129,43 +145,93 @@ async function addUriToAria2(url, referer, cookies, filename, directory, extraOp
     Object.assign(options, extraOptions);
   }
 
-  console.log('[Aria2] addUri - url:', url, 'referer:', referer, 'cookies length:', cookies.length);
+  console.log(
+    "[Aria2] addUri - url:",
+    url,
+    "referer:",
+    referer,
+    "cookies length:",
+    cookies.length,
+  );
 
-  return rpcCall('aria2.addUri', [[url], options]);
+  return rpcCall("aria2.addUri", [[url], options]);
 }
 
-async function captureURL(url, referer, cookies, filename, directory, extraOptions) {
-  return addUriToAria2(url, referer, cookies, filename, directory, extraOptions);
+async function captureURL(
+  url,
+  referer,
+  cookies,
+  filename,
+  directory,
+  extraOptions,
+) {
+  return addUriToAria2(
+    url,
+    referer,
+    cookies,
+    filename,
+    directory,
+    extraOptions,
+  );
 }
 
 function showNotification(title, message) {
-  api.notifications.create({
-    type: 'basic',
-    iconUrl: 'icons/icon128.png',
-    title: title,
-    message: message,
-  }).catch(() => {});
+  api.notifications
+    .create({
+      type: "basic",
+      iconUrl: "icons/icon128.png",
+      title: title,
+      message: message,
+    })
+    .catch(() => {});
 }
 
 const DEFAULT_SAFE_MODE_HOSTS = [
-  'gofile.io', '1fichier.com', 'pixeldrain.com', 'mediafire.com',
-  'mega.nz', 'ranoz.net', 'datanodes.to', 'bowfile.com',
-  'dl.free.fr', 'swisstransfer.com', 'freedlink.me', 'fileditch.com',
-  'uploadnow.io', 'wdho.ru', 'mixdrop.', 'chomikuj.pl',
-  'vikingfile.com', 'dayuploads.com', 'downmediaload.com', 'hexload.com',
-  '1cloudfile.com', 'usersdrive.com', 'megaup.net', 'clicknupload.org',
-  'dailyuploads.net', 'rapidgator.net', 'nitroflare.com', 'filebin.net',
-  'oshi.at',
+  "gofile.io",
+  "1fichier.com",
+  "pixeldrain.com",
+  "mediafire.com",
+  "mega.nz",
+  "ranoz.net",
+  "datanodes.to",
+  "bowfile.com",
+  "dl.free.fr",
+  "swisstransfer.com",
+  "freedlink.me",
+  "fileditch.com",
+  "uploadnow.io",
+  "wdho.ru",
+  "mixdrop.",
+  "chomikuj.pl",
+  "vikingfile.com",
+  "dayuploads.com",
+  "downmediaload.com",
+  "hexload.com",
+  "1cloudfile.com",
+  "usersdrive.com",
+  "megaup.net",
+  "clicknupload.org",
+  "dailyuploads.net",
+  "rapidgator.net",
+  "nitroflare.com",
+  "filebin.net",
+  "oshi.at",
 ];
 
 api.runtime.onInstalled.addListener(async () => {
   api.contextMenus.create({
-    id: 'downloadWithAria2',
-    title: 'Download with aria2',
-    contexts: ['link', 'selection'],
+    id: "downloadWithAria2",
+    title: "Download with aria2",
+    contexts: ["link", "selection"],
   });
 
-  const result = await api.storage.local.get(['aria2_rpc_url', 'aria2_default_download_path', 'aria2_hijack_downloads', 'aria2_safe_mode', 'aria2_safe_mode_hosts']);
+  const result = await api.storage.local.get([
+    "aria2_rpc_url",
+    "aria2_default_download_path",
+    "aria2_hijack_downloads",
+    "aria2_safe_mode",
+    "aria2_safe_mode_hosts",
+  ]);
   const defaults = {};
   if (!result.aria2_rpc_url) {
     defaults.aria2_rpc_url = DEFAULT_RPC_URL;
@@ -188,7 +254,7 @@ api.runtime.onInstalled.addListener(async () => {
 updateBadgeFromAria2();
 
 api.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === 'downloadWithAria2') {
+  if (info.menuItemId === "downloadWithAria2") {
     const urls = [];
     if (info.linkUrl) {
       urls.push(info.linkUrl);
@@ -201,10 +267,10 @@ api.contextMenus.onClicked.addListener(async (info, tab) => {
     for (const url of urls) {
       try {
         await captureURL(url, referer, cookies);
-        showNotification('aria2', 'Download added successfully');
+        showNotification("aria2", "Download added successfully");
       } catch (err) {
-        console.error('[Aria2] RPC error:', err);
-        showNotification('aria2 Error', err.message);
+        console.error("[Aria2] RPC error:", err);
+        showNotification("aria2 Error", err.message);
       }
     }
   }
@@ -232,7 +298,7 @@ function downloadMustBeCaptured(item, referrer, settings) {
 
   try {
     const urlObj = new URL(url);
-    const excludedProtocols = ['blob:', 'data:', 'file:'];
+    const excludedProtocols = ["blob:", "data:", "file:"];
     if (excludedProtocols.includes(urlObj.protocol)) {
       return false;
     }
@@ -241,7 +307,10 @@ function downloadMustBeCaptured(item, referrer, settings) {
   }
 
   if (interceptedUrls.has(url)) {
-    console.log('[Aria2] Skipping download - already intercepted by content script:', url);
+    console.log(
+      "[Aria2] Skipping download - already intercepted by content script:",
+      url,
+    );
     return false;
   }
 
@@ -251,28 +320,39 @@ function downloadMustBeCaptured(item, referrer, settings) {
 function hostMatchesUrl(host, url) {
   try {
     const hostname = new URL(url).hostname;
-    return hostname === host || hostname.endsWith('.' + host);
+    if (host.endsWith(".")) {
+      return hostname.startsWith(host) || hostname.includes("." + host);
+    }
+    return hostname === host || hostname.endsWith("." + host);
   } catch {
     return url.includes(host);
   }
 }
 
 async function getSafeModeOptions(url) {
-  const settings = await api.storage.local.get(['aria2_safe_mode', 'aria2_safe_mode_hosts']);
+  const settings = await api.storage.local.get([
+    "aria2_safe_mode",
+    "aria2_safe_mode_hosts",
+  ]);
   if (!settings.aria2_safe_mode) {
     return null;
   }
-  const safeModeHosts = settings.aria2_safe_mode_hosts || DEFAULT_SAFE_MODE_HOSTS;
-  const needsSafeMode = safeModeHosts.some(host => hostMatchesUrl(host, url));
+  const safeModeHosts =
+    settings.aria2_safe_mode_hosts || DEFAULT_SAFE_MODE_HOSTS;
+  const needsSafeMode = safeModeHosts.some((host) => hostMatchesUrl(host, url));
   if (!needsSafeMode) {
     return null;
   }
-  return { 'max-connection-per-server': '1', 'split': '1', 'enable-http-pipelining': 'false' };
+  return {
+    "max-connection-per-server": "1",
+    split: "1",
+    "enable-http-pipelining": "false",
+  };
 }
 
 async function captureDownloadItem(item, referer, cookies) {
   const url = item.finalUrl || item.url;
-  const filename = item.filename ? basename(item.filename) : '';
+  const filename = item.filename ? basename(item.filename) : "";
   const extraOptions = await getSafeModeOptions(url);
   await captureURL(url, referer, cookies, filename, null, extraOptions);
 }
@@ -281,7 +361,7 @@ async function handleDownload(downloadItem, handler) {
   if (capturedIds.has(downloadItem.id)) {
     return;
   }
-  const settings = await api.storage.local.get(['aria2_hijack_downloads']);
+  const settings = await api.storage.local.get(["aria2_hijack_downloads"]);
   if (!downloadMustBeCaptured(downloadItem, downloadItem.referrer, settings)) {
     return;
   }
@@ -295,7 +375,10 @@ async function handleDownload(downloadItem, handler) {
   }
   const cookieStoreId = currentTab?.cookieStoreId;
   const downloadUrl = downloadItem.finalUrl || downloadItem.url;
-  const cookies = await getCookiesForUrls([referrer, downloadUrl], cookieStoreId);
+  const cookies = await getCookiesForUrls(
+    [referrer, downloadUrl],
+    cookieStoreId,
+  );
 
   handler(downloadItem, referrer, cookies);
 }
@@ -310,7 +393,10 @@ api.downloads.onChanged.addListener(async (downloadDelta) => {
     downloadItem.filename = downloadDelta.filename.current;
   }
 
-  if (downloadDelta.state?.current === 'complete' && downloadItems[downloadDelta.id]) {
+  if (
+    downloadDelta.state?.current === "complete" &&
+    downloadItems[downloadDelta.id]
+  ) {
     delete downloadItems[downloadDelta.id];
   }
   if (downloadDelta.error?.current && downloadItems[downloadDelta.id]) {
@@ -326,17 +412,21 @@ api.downloads.onCreated.addListener(async (downloadItem) => {
     await removeDownloadItemCompletely(item);
     try {
       await captureDownloadItem(item, referrer, cookies);
-      showNotification('aria2', 'Download captured: ' + (item.filename ? basename(item.filename) : item.url));
+      showNotification(
+        "aria2",
+        "Download captured: " +
+          (item.filename ? basename(item.filename) : item.url),
+      );
     } catch (err) {
-      console.error('Failed to capture download:', err);
-      showNotification('aria2 Error', err.message);
+      console.error("Failed to capture download:", err);
+      showNotification("aria2 Error", err.message);
     }
     delete downloadItems[item.id];
   });
 });
 
 api.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === 'ADD_DOWNLOAD') {
+  if (request.type === "ADD_DOWNLOAD") {
     const referer = request.referrer ?? "";
     const url = request.url;
     (async () => {
@@ -351,18 +441,32 @@ api.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  if (request.type === 'ADD_DOWNLOAD_INTERCEPT') {
+  if (request.type === "ADD_DOWNLOAD_INTERCEPT") {
     const referer = request.referrer ?? sender.tab?.url ?? "";
     const url = request.url;
     const cookieStoreId = sender.tab?.cookieStoreId;
-    const siteName = request.siteName || '';
-    console.log('[Aria2] ADD_DOWNLOAD_INTERCEPT - url:', url, 'referer:', referer, 'site:', siteName);
-    
+    const siteName = request.siteName || "";
+    console.log(
+      "[Aria2] ADD_DOWNLOAD_INTERCEPT - url:",
+      url,
+      "referer:",
+      referer,
+      "site:",
+      siteName,
+    );
+
     (async () => {
       try {
         const extraOptions = await getSafeModeOptions(url);
         const cookies = await getCookiesForUrls([referer, url], cookieStoreId);
-        const result = await captureURL(url, referer, cookies, null, null, extraOptions);
+        const result = await captureURL(
+          url,
+          referer,
+          cookies,
+          null,
+          null,
+          extraOptions,
+        );
         sendResponse({ success: true, gid: result });
       } catch (err) {
         sendResponse({ success: false, error: err.message });
@@ -371,15 +475,15 @@ api.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-  if (request.type === 'GET_HIJACK_STATUS') {
+  if (request.type === "GET_HIJACK_STATUS") {
     (async () => {
-      const result = await api.storage.local.get(['aria2_hijack_downloads']);
+      const result = await api.storage.local.get(["aria2_hijack_downloads"]);
       sendResponse({ enabled: result.aria2_hijack_downloads || false });
     })();
     return true;
   }
 
-  if (request.type === 'SET_HIJACK_STATUS') {
+  if (request.type === "SET_HIJACK_STATUS") {
     (async () => {
       await api.storage.local.set({ aria2_hijack_downloads: request.enabled });
       sendResponse({ success: true });

@@ -1,50 +1,50 @@
-(function() {
-const {
-  getConfig,
-  setHijackStatus,
-  callAria2,
-  getAria2Status,
-  getFileName,
-  formatBytes,
-  formatSpeed,
-  escapeHtml,
-} = window.Aria2Shared;
+(function () {
+  const {
+    getConfig,
+    setHijackStatus,
+    callAria2,
+    getAria2Status,
+    getFileName,
+    formatBytes,
+    formatSpeed,
+    escapeHtml,
+  } = window.Aria2Shared;
 
-async function pauseDownload(gid) {
-  return callAria2('aria2.pause', [gid]);
-}
+  async function pauseDownload(gid) {
+    return callAria2("aria2.pause", [gid]);
+  }
 
-async function unpauseDownload(gid) {
-  return callAria2('aria2.unpause', [gid]);
-}
+  async function unpauseDownload(gid) {
+    return callAria2("aria2.unpause", [gid]);
+  }
 
-async function stopDownload(gid) {
-  return callAria2('aria2.remove', [gid]);
-}
+  async function stopDownload(gid) {
+    return callAria2("aria2.remove", [gid]);
+  }
 
-async function removeDownload(gid) {
-  try {
-    await callAria2('aria2.forceRemove', [gid]);
-  } catch {}
-  return callAria2('aria2.removeDownloadResult', [gid]);
-}
+  async function removeDownload(gid) {
+    try {
+      await callAria2("aria2.forceRemove", [gid]);
+    } catch {}
+    return callAria2("aria2.removeDownloadResult", [gid]);
+  }
 
-async function moveDownload(gid, pos, how) {
-  return callAria2('aria2.changePosition', [gid, pos, how]);
-}
+  async function moveDownload(gid, pos, how) {
+    return callAria2("aria2.changePosition", [gid, pos, how]);
+  }
 
-function PopupApp() {
-  let pollTimeout;
-  const POLL_FAST_MS = 1000;
-  const POLL_IDLE_MS = 2500;
-  const POLL_ERROR_MS = 5000;
+  function PopupApp() {
+    let pollTimeout;
+    const POLL_FAST_MS = 1000;
+    const POLL_IDLE_MS = 2500;
+    const POLL_ERROR_MS = 5000;
 
-  const container = document.createElement('div');
-  container.className = 'app popup-mode';
+    const container = document.createElement("div");
+    container.className = "app popup-mode";
 
-  const header = document.createElement('header');
-  header.className = 'header';
-  header.innerHTML = `
+    const header = document.createElement("header");
+    header.className = "header";
+    header.innerHTML = `
     <div class="logo-container">
       <div class="logo">
         <svg viewBox="0 0 42 42" width="28" height="28">
@@ -89,25 +89,25 @@ function PopupApp() {
     </div>
   `;
 
-  const content = document.createElement('main');
-  content.className = 'main popup-content';
-  container.appendChild(header);
-  container.appendChild(content);
+    const content = document.createElement("main");
+    content.className = "main popup-content";
+    container.appendChild(header);
+    container.appendChild(content);
 
-  const footer = document.createElement('footer');
-  footer.className = 'popup-footer';
-  footer.innerHTML = `
+    const footer = document.createElement("footer");
+    footer.className = "popup-footer";
+    footer.innerHTML = `
     <a href="#" class="link-open-full" id="open-full">open full dashboard</a>
     <span class="connection-status" id="connection-status">checking...</span>
   `;
-  container.appendChild(footer);
+    container.appendChild(footer);
 
-  function renderDashboard() {
-    content.innerHTML = '';
+    function renderDashboard() {
+      content.innerHTML = "";
 
-    const topBar = document.createElement('div');
-    topBar.className = 'popup-topbar';
-    topBar.innerHTML = `
+      const topBar = document.createElement("div");
+      topBar.className = "popup-topbar";
+      topBar.innerHTML = `
       <div class="compact-stats">
         <div class="compact-stat">
           <span class="compact-stat-value" id="stat-active">-</span>
@@ -124,39 +124,42 @@ function PopupApp() {
       </div>
     `;
 
-    const downloadsSection = document.createElement('div');
-    downloadsSection.className = 'downloads-section popup-downloads';
-    downloadsSection.innerHTML = `
+      const downloadsSection = document.createElement("div");
+      downloadsSection.className = "downloads-section popup-downloads";
+      downloadsSection.innerHTML = `
       <div class="downloads-list" id="downloads-list">
         <div class="empty-state">loading...</div>
       </div>
     `;
 
-    content.appendChild(topBar);
-    content.appendChild(downloadsSection);
-  }
+      content.appendChild(topBar);
+      content.appendChild(downloadsSection);
+    }
 
-  async function loadData() {
-    let nextDelay = POLL_IDLE_MS;
-    try {
-      const { globalStat, active, waiting, stopped } = await getAria2Status();
-      const activeCount = parseInt(globalStat.numActive, 10) || 0;
-      nextDelay = activeCount > 0 ? POLL_FAST_MS : POLL_IDLE_MS;
-      
-      const statActive = document.getElementById('stat-active');
-      const statWaiting = document.getElementById('stat-waiting');
-      const statSpeed = document.getElementById('stat-speed');
-      
-      if (statActive) statActive.textContent = globalStat.numActive;
-      if (statWaiting) statWaiting.textContent = globalStat.numWaiting;
-      if (statSpeed) statSpeed.textContent = formatSpeed(parseInt(globalStat.downloadSpeed));
-      
-      const listEl = document.getElementById('downloads-list');
-      if (listEl) {
-        const allDownloads = [...active, ...waiting.slice(0, 6)];
-        
-        if (allDownloads.length === 0) {
-          listEl.innerHTML = `
+    async function loadData() {
+      let nextDelay = POLL_IDLE_MS;
+      try {
+        const { globalStat, active, waiting, stopped } = await getAria2Status();
+        const activeCount = parseInt(globalStat.numActive, 10) || 0;
+        nextDelay = activeCount > 0 ? POLL_FAST_MS : POLL_IDLE_MS;
+
+        const statActive = document.getElementById("stat-active");
+        const statWaiting = document.getElementById("stat-waiting");
+        const statSpeed = document.getElementById("stat-speed");
+
+        if (statActive) statActive.textContent = globalStat.numActive;
+        if (statWaiting) statWaiting.textContent = globalStat.numWaiting;
+        if (statSpeed)
+          statSpeed.textContent = formatSpeed(
+            parseInt(globalStat.downloadSpeed),
+          );
+
+        const listEl = document.getElementById("downloads-list");
+        if (listEl) {
+          const allDownloads = [...active, ...waiting.slice(0, 6)];
+
+          if (allDownloads.length === 0) {
+            listEl.innerHTML = `
             <div class="empty-downloads">
               <div class="empty-downloads-dots">
                 <span class="dot dot--empty-anim"></span>
@@ -170,55 +173,66 @@ function PopupApp() {
               </div>
               <div class="empty-downloads-text">idle</div>
             </div>`;
-        } else {
-          const existingGids = new Set(
-            Array.from(listEl.querySelectorAll('[data-gid]')).map(el => el.dataset.gid)
-          );
-          listEl.innerHTML = '';
-          allDownloads.forEach((d, i) => {
-            const waitingIndex = i - active.length;
-            const isWaiting = i >= active.length;
-            const row = createDownloadRow(d, isWaiting ? waitingIndex : -1, waiting.length);
-            if (!existingGids.has(d.gid)) {
-              row.style.animationDelay = `${i * 0.04}s`;
-            } else {
-              row.style.animation = 'none';
-            }
-            listEl.appendChild(row);
-          });
+          } else {
+            const existingGids = new Set(
+              Array.from(listEl.querySelectorAll("[data-gid]")).map(
+                (el) => el.dataset.gid,
+              ),
+            );
+            listEl.innerHTML = "";
+            allDownloads.forEach((d, i) => {
+              const waitingIndex = i - active.length;
+              const isWaiting = i >= active.length;
+              const row = createDownloadRow(
+                d,
+                isWaiting ? waitingIndex : -1,
+                waiting.length,
+              );
+              if (!existingGids.has(d.gid)) {
+                row.style.animationDelay = `${i * 0.04}s`;
+              } else {
+                row.style.animation = "none";
+              }
+              listEl.appendChild(row);
+            });
+          }
+        }
+
+        const connStatus = document.getElementById("connection-status");
+        if (connStatus) {
+          connStatus.textContent = "connected";
+          connStatus.className = "connection-status connected";
+        }
+      } catch (err) {
+        nextDelay = POLL_ERROR_MS;
+        const connStatus = document.getElementById("connection-status");
+        if (connStatus) {
+          connStatus.textContent = "disconnected";
+          connStatus.className = "connection-status disconnected";
+        }
+        const listEl = document.getElementById("downloads-list");
+        if (listEl) {
+          listEl.innerHTML =
+            '<div class="empty-state error">' +
+            escapeHtml(err.message) +
+            "</div>";
         }
       }
-      
-      const connStatus = document.getElementById('connection-status');
-      if (connStatus) {
-        connStatus.textContent = 'connected';
-        connStatus.className = 'connection-status connected';
-      }
-    } catch (err) {
-      nextDelay = POLL_ERROR_MS;
-      const connStatus = document.getElementById('connection-status');
-      if (connStatus) {
-        connStatus.textContent = 'disconnected';
-        connStatus.className = 'connection-status disconnected';
-      }
-      const listEl = document.getElementById('downloads-list');
-      if (listEl) {
-        listEl.innerHTML = '<div class="empty-state error">' + escapeHtml(err.message) + '</div>';
-      }
+      pollTimeout = setTimeout(loadData, nextDelay);
     }
-    pollTimeout = setTimeout(loadData, nextDelay);
-  }
 
-  function createDownloadRow(download, waitingIndex, totalWaiting) {
-    const total = parseInt(download.totalLength) || 1;
-    const completed = parseInt(download.completedLength);
-    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-    const canMoveUp = waitingIndex > 0;
-    const canMoveDown = waitingIndex >= 0 && waitingIndex < totalWaiting - 1;
-    
-    const row = document.createElement('div');
-    row.className = 'download-item popup-item' + (download.status === 'active' ? ' row--active' : '');
-    row.innerHTML = `
+    function createDownloadRow(download, waitingIndex, totalWaiting) {
+      const total = parseInt(download.totalLength) || 1;
+      const completed = parseInt(download.completedLength);
+      const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+      const canMoveUp = waitingIndex > 0;
+      const canMoveDown = waitingIndex >= 0 && waitingIndex < totalWaiting - 1;
+
+      const row = document.createElement("div");
+      row.className =
+        "download-item popup-item" +
+        (download.status === "active" ? " row--active" : "");
+      row.innerHTML = `
       <div class="download-row-content">
         <div class="download-info">
           <div class="download-name" title="${escapeHtml(getFileName(download))}">${escapeHtml(getFileName(download))}</div>
@@ -228,24 +242,52 @@ function PopupApp() {
           </div>
         </div>
         <div class="download-actions-compact">
-          ${canMoveUp ? `
+          ${
+            canMoveUp
+              ? `
             <button class="btn-action-icon btn-move-up" data-gid="${download.gid}" title="Move up">▲</button>
-          ` : ''}
-          ${canMoveDown ? `
+          `
+              : ""
+          }
+          ${
+            canMoveDown
+              ? `
             <button class="btn-action-icon btn-move-down" data-gid="${download.gid}" title="Move down">▼</button>
-          ` : ''}
-          ${download.status === 'active' ? `
+          `
+              : ""
+          }
+          ${
+            download.status === "active"
+              ? `
             <button class="btn-action-icon btn-pause" data-gid="${download.gid}" title="Pause">⏸</button>
-          ` : ''}
-          ${download.status === 'paused' ? `
+          `
+              : ""
+          }
+          ${
+            download.status === "paused"
+              ? `
             <button class="btn-action-icon btn-resume" data-gid="${download.gid}" title="Resume">▶</button>
-          ` : ''}
-          ${download.status === 'active' || download.status === 'waiting' || download.status === 'paused' ? `
+          `
+              : ""
+          }
+          ${
+            download.status === "active" ||
+            download.status === "waiting" ||
+            download.status === "paused"
+              ? `
             <button class="btn-action-icon btn-stop" data-gid="${download.gid}" title="Stop">⏹</button>
-          ` : ''}
-          ${download.status === 'complete' || download.status === 'error' || download.status === 'removed' ? `
+          `
+              : ""
+          }
+          ${
+            download.status === "complete" ||
+            download.status === "error" ||
+            download.status === "removed"
+              ? `
             <button class="btn-action-icon btn-delete" data-gid="${download.gid}" title="Remove">🗑</button>
-          ` : ''}
+          `
+              : ""
+          }
         </div>
       </div>
       <div class="download-progress">
@@ -253,72 +295,79 @@ function PopupApp() {
         <span class="progress-text">${percent}%</span>
       </div>
     `;
-    
-    row.querySelectorAll('.btn-action-icon').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const gid = btn.dataset.gid;
-        try {
-          if (btn.classList.contains('btn-pause')) await pauseDownload(gid);
-          else if (btn.classList.contains('btn-resume')) await unpauseDownload(gid);
-          else if (btn.classList.contains('btn-stop')) await stopDownload(gid);
-          else if (btn.classList.contains('btn-delete')) await removeDownload(gid);
-          else if (btn.classList.contains('btn-move-up')) await moveDownload(gid, -1, 'POS_SET');
-          else if (btn.classList.contains('btn-move-down')) await moveDownload(gid, 1, 'POS_SET');
-          await loadData();
-        } catch (err) {
-          console.error('Action failed:', err);
-        }
+
+      row.querySelectorAll(".btn-action-icon").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const gid = btn.dataset.gid;
+          try {
+            if (btn.classList.contains("btn-pause")) await pauseDownload(gid);
+            else if (btn.classList.contains("btn-resume"))
+              await unpauseDownload(gid);
+            else if (btn.classList.contains("btn-stop"))
+              await stopDownload(gid);
+            else if (btn.classList.contains("btn-delete"))
+              await removeDownload(gid);
+            else if (btn.classList.contains("btn-move-up"))
+              await moveDownload(gid, -1, "POS_SET");
+            else if (btn.classList.contains("btn-move-down"))
+              await moveDownload(gid, 1, "POS_SET");
+            await loadData();
+          } catch (err) {
+            console.error("Action failed:", err);
+          }
+        });
       });
-    });
-    
-    return row;
-  }
 
-  function renderDotProgress(percent) {
-    const totalDots = 12;
-    const filledDots = Math.round((percent / 100) * totalDots);
-    let dots = '';
-    for (let i = 0; i < totalDots; i++) {
-      dots += `<span class="dot ${i < filledDots ? 'filled' : ''}"></span>`;
+      return row;
     }
-    return `<div class="dot-progress mini">${dots}</div>`;
+
+    function renderDotProgress(percent) {
+      const totalDots = 12;
+      const filledDots = Math.round((percent / 100) * totalDots);
+      let dots = "";
+      for (let i = 0; i < totalDots; i++) {
+        dots += `<span class="dot ${i < filledDots ? "filled" : ""}" style="--i:${i}"></span>`;
+      }
+      return `<div class="dot-progress mini">${dots}</div>`;
+    }
+
+    container.addEventListener("mount", async () => {
+      const config = await getConfig();
+      document.getElementById("hijack-toggle").checked = config.hijackDownloads;
+
+      renderDashboard();
+      loadData();
+
+      document.getElementById("open-options").addEventListener("click", () => {
+        chrome.runtime.openOptionsPage();
+      });
+
+      document.getElementById("open-full").addEventListener("click", (e) => {
+        e.preventDefault();
+        chrome.tabs.create({ url: chrome.runtime.getURL("src/full.html") });
+      });
+
+      document
+        .getElementById("hijack-toggle")
+        .addEventListener("change", (e) => {
+          setHijackStatus(e.target.checked);
+        });
+    });
+
+    container.addEventListener("unmount", () => {
+      if (pollTimeout) clearTimeout(pollTimeout);
+    });
+
+    return container;
   }
 
-  container.addEventListener('mount', async () => {
-    const config = await getConfig();
-    document.getElementById('hijack-toggle').checked = config.hijackDownloads;
-    
-    renderDashboard();
-    loadData();
-    
-    document.getElementById('open-options').addEventListener('click', () => {
-      chrome.runtime.openOptionsPage();
-    });
-    
-    document.getElementById('open-full').addEventListener('click', (e) => {
-      e.preventDefault();
-      chrome.tabs.create({ url: chrome.runtime.getURL('src/full.html') });
-    });
-    
-    document.getElementById('hijack-toggle').addEventListener('change', (e) => {
-      setHijackStatus(e.target.checked);
-    });
+  const root = document.getElementById("root");
+  const app = PopupApp();
+  root.appendChild(app);
+  app.dispatchEvent(new Event("mount"));
+
+  window.addEventListener("unload", () => {
+    app.dispatchEvent(new Event("unmount"));
   });
-
-  container.addEventListener('unmount', () => {
-    if (pollTimeout) clearTimeout(pollTimeout);
-  });
-
-  return container;
-}
-
-const root = document.getElementById('root');
-const app = PopupApp();
-root.appendChild(app);
-app.dispatchEvent(new Event('mount'));
-
-window.addEventListener('unload', () => {
-  app.dispatchEvent(new Event('unmount'));
-});
 })();

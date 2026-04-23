@@ -1,5 +1,8 @@
 const DEFAULT_RPC_URL = "http://localhost:6800/jsonrpc";
 
+// Badge accent color — keep in sync with --p-accent-base in src/theme.css
+const BADGE_COLOR = "#ff1a1a";
+
 const downloadItems = {};
 const capturedIds = new Set();
 const interceptedUrls = new Set();
@@ -123,7 +126,7 @@ async function updateBadgeFromAria2() {
     chrome.action.setBadgeText({
       text: activeCount > 0 ? String(activeCount) : "",
     });
-    chrome.action.setBadgeBackgroundColor({ color: "#ff1a1a" });
+    chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR });
     nextDelayMs = activeCount > 0 ? 2000 : 5000;
   } catch {
     nextDelayMs = 10000;

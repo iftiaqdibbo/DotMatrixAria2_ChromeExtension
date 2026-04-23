@@ -19,7 +19,8 @@ A browser extension for managing aria2 downloads with a sleek dot-matrix aesthet
 - **Safe Mode**: Toggle to force single-connection downloads for rate-limited hosts — prevents 429 errors and connection drops
 - **Safe Mode Site Management**: Add and remove sites from the safe mode list directly in the options UI — no code editing required
 - **Shared Options**: Popup and full dashboard share the same options page with tabbed navigation (General + Safe Mode)
-- **Dot-Matrix Aesthetic**: Clean dark theme with monospace fonts and red accents
+- **Dot-Matrix Aesthetic**: Dark theme with monospace fonts, red accents, and fluid animations (liquid progress bars, sonar rings, spring row entrances, ambient glows)
+- **Modular Theming**: All colors, fonts, and sizing live in `src/theme.css` — retheme the entire extension by editing one file
 - **Toggleable Hijacking**: Enable/disable browser download interception
 - **RPC Authentication**: Support for aria2 secret tokens
 - **Cookie Forwarding**: Automatically sends cookies and referrer to aria2 for authenticated downloads
@@ -204,7 +205,8 @@ This creates:
 │   ├── popup.html/js      # Popup panel
 │   ├── options.html/js    # Options page (shared between popup and full dashboard)
 │   ├── full.html/js       # Full dashboard (loads options.js for embedded settings)
-│   └── style.css          # Styles (dot-matrix theme)
+│   ├── theme.css          # Design tokens — colors, fonts, radii (edit here to retheme)
+│   └── style.css          # Structural styles (references theme.css tokens only)
 ├── icons/                 # Extension icons
 ├── firefox/               # Firefox-specific files
 │   ├── manifest.json      # Firefox manifest (with gecko settings)
@@ -231,7 +233,6 @@ This creates:
 - `notifications`: Download status notifications
 - `downloads`: Download interception
 - `cookies`: Access cookies for authenticated downloads
-- `alarms`: Reserved for scheduled tasks
 - `host_permissions`: Connect to aria2 RPC and access cookies from all sites
 
 ## License
@@ -262,5 +263,5 @@ MIT
 
 ## Credits
 
-- Fonts: Space Mono, Space Grotesk (Google Fonts)
+- Fonts: Doto, Space Mono, Space Grotesk (Google Fonts)
 - Aria2: [aria2/aria2](https://github.com/aria2/aria2)

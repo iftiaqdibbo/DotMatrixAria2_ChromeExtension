@@ -23,7 +23,7 @@
     "<all_urls>"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; connect-src *"
+    "extension_pages": "script-src 'self'; connect-src http://localhost:* http://127.0.0.1:*"
   },
   "background": {
     "scripts": ["src/constants.js", "src/background.js"]

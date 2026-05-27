@@ -108,10 +108,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-  setInterval(() => {
-    cachedHijackEnabled = null;
-  }, 30000);
-
   async function sendToAria2(url, siteName) {
     if (!url || !url.startsWith("http")) return;
     if (alreadySent.has(url)) {
@@ -144,11 +140,11 @@ chrome.storage.onChanged.addListener((changes, area) => {
   function extractUrlsFromText(text) {
     const found = [];
     for (const interceptor of siteInterceptors) {
+      const re = new RegExp(interceptor.pattern.source, interceptor.pattern.flags);
       let match;
-      while ((match = interceptor.pattern.exec(text)) !== null) {
+      while ((match = re.exec(text)) !== null) {
         found.push({ url: match[1], site: interceptor.name });
       }
-      interceptor.pattern.lastIndex = 0;
     }
     return found;
   }

@@ -199,6 +199,10 @@ body {
     gap: 16px;
 }
 
+.hijack-toggle-row + .hijack-toggle-row {
+    margin-top: 8px;
+}
+
 .hijack-info {
     display: flex;
     flex-direction: column;
@@ -845,6 +849,10 @@ input:focus + .toggle-slider {
     margin-top: 6px;
 }
 
+.input-hint--block {
+    margin-bottom: 12px;
+}
+
 .form-actions {
     display: flex;
     align-items: center;
@@ -880,6 +888,10 @@ input:focus + .toggle-slider {
     background: var(--accent);
     color: var(--bg);
     font-weight: 600;
+}
+
+.btn-primary.btn--top-margin {
+    margin-top: 12px;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -1953,9 +1965,9 @@ footer {
 }
 
 .modal-dialog {
-  background: var(--bg-elevated, #1a1a1a);
-  border: 1px solid var(--border, #333);
-  border-radius: var(--radius, 12px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 24px;
   min-width: 320px;
   max-width: 90vw;
@@ -1965,18 +1977,18 @@ footer {
   margin: 0 0 16px;
   font-size: 16px;
   font-weight: 600;
-  color: var(--text, #e0e0e0);
+  color: var(--text);
+}
+
+.modal-error {
+  color: var(--red);
+  font-size: 13px;
+  margin-bottom: 12px;
 }
 
 .modal-input {
   width: 100%;
   box-sizing: border-box;
-  margin-bottom: 12px;
-}
-
-.modal-error {
-  color: var(--red, #ff1a1a);
-  font-size: 13px;
   margin-bottom: 12px;
 }
 

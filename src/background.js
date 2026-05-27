@@ -497,17 +497,6 @@ async function getSafeModeOptions(url) {
 async function captureDownloadItem(item, referer, cookies) {
   const url = item.finalUrl || item.url;
   const filename = basename(item.filename);
-  if (filename) {
-    const ext = getFileExtensionFromPath(filename);
-    if (ext) {
-      const { aria2_filter_extensions } = await chrome.storage.local.get(["aria2_filter_extensions"]);
-      const filters = aria2_filter_extensions || ARIA2_DEFAULT_FILTER_EXTENSIONS;
-      if (filters.some((f) => f.toLowerCase() === ext)) {
-        console.log("[Aria2] Skipping capture - filename extension is filtered:", filename);
-        return;
-      }
-    }
-  }
   const extraOptions = await getSafeModeOptions(url);
   await addUriToAria2(url, referer, cookies, filename, null, extraOptions);
 }
@@ -582,6 +571,7 @@ chrome.downloads.onChanged.addListener(async (downloadDelta) => {
       downloadItems[downloadDelta.id]
     ) {
       delete downloadItems[downloadDelta.id];
+      capturedIds.delete(downloadDelta.id);
     }
     if (downloadDelta.error?.current && downloadItems[downloadDelta.id]) {
       delete downloadItems[downloadDelta.id];

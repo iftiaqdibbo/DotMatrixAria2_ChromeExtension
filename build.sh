@@ -4,6 +4,9 @@ set -e
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 
+echo "Installing dependencies..."
+npm install
+
 echo "Building Chrome extension with Vite..."
 npm run build:chrome
 

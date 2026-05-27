@@ -288,7 +288,7 @@ export class Aria2Options extends LitElement {
                 <span class="input-hint">Default directory for new downloads (optional)</span>
               </div>
               <div class="form-group">
-                <div class="hijack-toggle-row" style="margin-bottom: 8px;">
+                <div class="hijack-toggle-row">
                   <div class="hijack-info">
                     <span class="hijack-label">Completion Notifications</span>
                     <span class="hijack-desc">Show notification when a download finishes</span>
@@ -307,7 +307,7 @@ export class Aria2Options extends LitElement {
             <section class="settings-section">
               <h2 class="section-title"><span class="dot-indicator"></span>browser integration</h2>
               <div class="form-group">
-                <div class="hijack-toggle-row" style="margin-bottom: 8px;">
+                <div class="hijack-toggle-row">
                   <div class="hijack-info">
                     <span class="hijack-label">Hijack Browser Downloads</span>
                     <span class="hijack-desc">Intercept all browser downloads and send to aria2</span>
@@ -353,7 +353,7 @@ export class Aria2Options extends LitElement {
             <section class="settings-section">
               <h2 class="section-title"><span class="dot-indicator"></span>safe mode</h2>
               <div class="form-group">
-                <div class="hijack-toggle-row" style="margin-bottom: 8px;">
+                <div class="hijack-toggle-row">
                   <div class="hijack-info">
                     <span class="hijack-label">Safe Mode</span>
                     <span class="hijack-desc">Force single connection for known file hosting sites</span>
@@ -371,7 +371,7 @@ export class Aria2Options extends LitElement {
 
             <section class="settings-section">
               <h2 class="section-title"><span class="dot-indicator"></span>managed sites</h2>
-              <span class="input-hint" style="margin-bottom: 12px; display: block;">Sites in this list will use single-connection downloads when safe mode is enabled</span>
+              <span class="input-hint input-hint--block">Sites in this list will use single-connection downloads when safe mode is enabled</span>
               <div class="safe-mode-host-add">
                 <input type="text" class="input" placeholder="e.g. example.com"
                   .value=${this._newHost} @input=${(e: Event) => this._newHost = (e.target as HTMLInputElement).value}
@@ -401,7 +401,7 @@ export class Aria2Options extends LitElement {
             <section class="settings-section">
               <h2 class="section-title"><span class="dot-indicator"></span>file extension filters</h2>
               <div class="form-group">
-                <span class="input-hint" style="display: block; margin-bottom: 12px;">Downloads with matching file extensions will be ignored. Add extensions like <strong>.torrent</strong> or <strong>.exe</strong> to prevent them from being sent to aria2.</span>
+                <span class="input-hint input-hint--block">Downloads with matching file extensions will be ignored. Add extensions like <strong>.torrent</strong> or <strong>.exe</strong> to prevent them from being sent to aria2.</span>
                 <div class="safe-mode-host-add">
                   <input type="text" class="input" placeholder="e.g. .torrent"
                     .value=${this._newFilter} @input=${(e: Event) => this._newFilter = (e.target as HTMLInputElement).value}
@@ -466,7 +466,7 @@ export class Aria2Options extends LitElement {
                     </div>
                   `)}
               </div>
-              <button class="btn btn-primary" style="margin-top: 12px;" @click=${this._openCreateTheme}>create custom theme</button>
+              <button class="btn btn-primary btn--top-margin" @click=${this._openCreateTheme}>create custom theme</button>
             </section>
 
             <aria2-theme-editor

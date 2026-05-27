@@ -313,7 +313,7 @@ npm run typecheck      # TypeScript type checking
 │   ├── manifest.json      # Firefox manifest (with gecko settings)
 │   └── icons/             # Copy of extension icons
 ├── manifest.json              # Chrome manifest (build output)
-├── manifest.lit.json          # Chrome manifest source (copied by Vite)
+├── manifest.chrome.json       # Chrome manifest source (copied by Vite)
 ├── vite.config.ts             # Vite build configuration
 ├── tsconfig.json              # TypeScript configuration
 ├── package.json               # npm package definition
@@ -333,7 +333,7 @@ npm run typecheck      # TypeScript type checking
 |--------|--------|---------|
 | Background | Service worker (`background.service_worker`) | Background page (`background.scripts`) |
 | Download capture | `onChanged` + `onDeterminingFilename` | `onCreated` directly |
-| Manifest | `manifest.lit.json` → `dist/chrome/manifest.json` | `firefox/manifest.json` → `dist/firefox/manifest.json` |
+| Manifest | `manifest.chrome.json` → `dist/chrome/manifest.json` | `firefox/manifest.json` → `dist/firefox/manifest.json` |
 | Add-on ID | N/A | `browser_specific_settings.gecko` |
 
 Both versions use the same shared `src/background.js` and `src/content.js` — the build system (Vite) handles copying the appropriate manifest and icons for each target.

@@ -2,3 +2,4 @@ dist/
 node_modules/
 .DS_Store
 old-vanilla-js-version.tar.gz
+manifest.json

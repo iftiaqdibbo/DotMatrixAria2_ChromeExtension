@@ -7,18 +7,7 @@ import {
   CustomTheme,
   ThemeId,
 } from "./constants";
-
-function storageGet(keys: string[]): Promise<Record<string, unknown>> {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(keys, resolve as (result: Record<string, unknown>) => void);
-  });
-}
-
-function storageSet(values: Record<string, unknown>): Promise<void> {
-  return new Promise((resolve) => {
-    chrome.storage.local.set(values, resolve as () => void);
-  });
-}
+import { storageGet, storageSet } from "./storage";
 
 export interface Aria2Config {
   rpcUrl: string;
@@ -33,7 +22,7 @@ export interface Aria2Config {
 }
 
 export async function getConfig(): Promise<Aria2Config> {
-  const result = await storageGet([
+  const result = (await storageGet([
     "aria2_rpc_url",
     "aria2_rpc_secret",
     "aria2_default_download_path",
@@ -43,7 +32,7 @@ export async function getConfig(): Promise<Aria2Config> {
     "aria2_completion_notifications",
     "aria2_filter_extensions",
     "aria2_theme",
-  ]) as Record<string, unknown>;
+  ])) as Record<string, unknown>;
 
   return {
     rpcUrl: (result.aria2_rpc_url as string) || ARIA2_DEFAULT_RPC_URL,
@@ -51,7 +40,9 @@ export async function getConfig(): Promise<Aria2Config> {
     downloadPath: (result.aria2_default_download_path as string) || "",
     hijackDownloads: (result.aria2_hijack_downloads as boolean) || false,
     safeMode: result.aria2_safe_mode !== false,
-    safeModeHosts: (result.aria2_safe_mode_hosts as string[]) || [...ARIA2_DEFAULT_SAFE_MODE_HOSTS],
+    safeModeHosts: (result.aria2_safe_mode_hosts as string[]) || [
+      ...ARIA2_DEFAULT_SAFE_MODE_HOSTS,
+    ],
     completionNotifications: result.aria2_completion_notifications !== false,
     filterExtensions: (result.aria2_filter_extensions as string[]) || [],
     theme: ((result.aria2_theme as string) || "original") as ThemeId,
@@ -76,22 +67,37 @@ export async function setHijackStatus(enabled: boolean): Promise<void> {
   return storageSet({ aria2_hijack_downloads: enabled });
 }
 
-export async function callAria2(method: string, params: unknown[] = []): Promise<unknown> {
-  const config = await getConfig();
-  const secretToken = config.secret ? [`token:${config.secret}`] : [];
-  const body = {
-    jsonrpc: "2.0",
-    id: crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2, 10)),
-    method,
-    params: [...secretToken, ...params],
-  };
+/* ── Lightweight RPC helpers ────────────────────────────────────────────── */
 
-  const response = await fetch(config.rpcUrl, {
+/** Read just the RPC config (url + secret) — 2 keys instead of 9. */
+async function getRpcConfig(): Promise<{ rpcUrl: string; secret: string }> {
+  const result = (await storageGet([
+    "aria2_rpc_url",
+    "aria2_rpc_secret",
+  ])) as Record<string, unknown>;
+  return {
+    rpcUrl: (result.aria2_rpc_url as string) || ARIA2_DEFAULT_RPC_URL,
+    secret: (result.aria2_rpc_secret as string) || "",
+  };
+}
+
+const RPC_TIMEOUT_MS = 10_000;
+
+/**
+ * Low-level fetch + JSON parse for aria2 RPC.
+ * Exported so background.js's rpcCall can eventually share it.
+ */
+async function rpcFetch(
+  rpcUrl: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const response = await fetch(rpcUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   });
-
   const parsed = await response.json();
   if (parsed.error) {
     throw new Error(parsed.error.message || "aria2 RPC error");
@@ -99,24 +105,50 @@ export async function callAria2(method: string, params: unknown[] = []): Promise
   return parsed.result;
 }
 
-export async function testConnectionWithParams(rpcUrl: string, secret: string): Promise<unknown> {
+export async function callAria2(
+  method: string,
+  params: unknown[] = [],
+): Promise<unknown> {
+  const { rpcUrl, secret } = await getRpcConfig();
   const secretToken = secret ? [`token:${secret}`] : [];
   const body = {
     jsonrpc: "2.0",
-    id: crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2, 10)),
+    id: crypto.randomUUID
+      ? crypto.randomUUID()
+      : Date.now().toString(36) + Math.random().toString(36).slice(2, 10),
+    method,
+    params: [...secretToken, ...params],
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS);
+  try {
+    return await rpcFetch(rpcUrl, body, controller.signal);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function testConnectionWithParams(
+  rpcUrl: string,
+  secret: string,
+): Promise<unknown> {
+  const secretToken = secret ? [`token:${secret}`] : [];
+  const body = {
+    jsonrpc: "2.0",
+    id: crypto.randomUUID
+      ? crypto.randomUUID()
+      : Date.now().toString(36) + Math.random().toString(36).slice(2, 10),
     method: "aria2.getVersion",
     params: secretToken,
   };
-  const response = await fetch(rpcUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const parsed = await response.json();
-  if (parsed.error) {
-    throw new Error(parsed.error.message || "aria2 RPC error");
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS);
+  try {
+    return await rpcFetch(rpcUrl, body, controller.signal);
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return parsed.result;
 }
 
 export interface Aria2Download {
@@ -148,8 +180,14 @@ export interface Aria2Status {
 
 export async function getAria2Status(): Promise<Aria2Status> {
   const tellKeys = [
-    "gid", "status", "totalLength", "completedLength",
-    "downloadSpeed", "uploadSpeed", "files", "connections",
+    "gid",
+    "status",
+    "totalLength",
+    "completedLength",
+    "downloadSpeed",
+    "uploadSpeed",
+    "files",
+    "connections",
     "completedTime",
   ];
   const [globalStat, active, waiting, stopped] = await Promise.all([

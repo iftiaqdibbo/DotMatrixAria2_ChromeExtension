@@ -1,0 +1,35 @@
+const ARIA2_DEFAULT_RPC_URL = "http://localhost:6800/jsonrpc";
+
+const ARIA2_DEFAULT_FILTER_EXTENSIONS = [];
+
+const ARIA2_DEFAULT_SAFE_MODE_HOSTS = [
+  "gofile.io",
+  "1fichier.com",
+  "pixeldrain.com",
+  "mediafire.com",
+  "mega.nz",
+  "ranoz.net",
+  "datanodes.to",
+  "bowfile.com",
+  "dl.free.fr",
+  "swisstransfer.com",
+  "freedlink.me",
+  "fileditch.com",
+  "uploadnow.io",
+  "wdho.ru",
+  "mixdrop.",
+  "chomikuj.pl",
+  "vikingfile.com",
+  "dayuploads.com",
+  "downmediaload.com",
+  "hexload.com",
+  "1cloudfile.com",
+  "usersdrive.com",
+  "megaup.net",
+  "clicknupload.org",
+  "dailyuploads.net",
+  "rapidgator.net",
+  "nitroflare.com",
+  "filebin.net",
+  "oshi.at",
+];

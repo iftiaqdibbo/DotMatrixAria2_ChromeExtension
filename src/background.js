@@ -292,7 +292,10 @@ async function addUriToAria2(
   setTimeout(() => interceptedUrls.delete(url), 30000);
 
   const options = {};
-  options.header = [`Referer: ${referer}`, `Cookie: ${cookies}`];
+  const headers = [];
+  if (referer) headers.push(`Referer: ${referer}`);
+  if (cookies) headers.push(`Cookie: ${cookies}`);
+  if (headers.length) options.header = headers;
 
   const { aria2_default_download_path } = await chrome.storage.local.get([
     "aria2_default_download_path",

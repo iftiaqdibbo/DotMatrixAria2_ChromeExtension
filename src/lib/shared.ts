@@ -2,9 +2,6 @@ import {
   ARIA2_DEFAULT_RPC_URL,
   ARIA2_DEFAULT_FILTER_EXTENSIONS,
   ARIA2_DEFAULT_SAFE_MODE_HOSTS,
-  ARIA2_THEMES,
-  ARIA2_CUSTOM_THEMES_KEY,
-  CustomTheme,
   ThemeId,
 } from "./constants";
 import { storageGet, storageSet } from "./storage";
@@ -196,7 +193,12 @@ export async function getAria2Status(): Promise<Aria2Status> {
     callAria2("aria2.tellWaiting", [0, 100, tellKeys]),
     callAria2("aria2.tellStopped", [0, 100, tellKeys]),
   ]);
-  return { globalStat, active, waiting, stopped } as Aria2Status;
+  return {
+    globalStat: (globalStat || {}) as Aria2GlobalStat,
+    active: (active || []) as Aria2Download[],
+    waiting: (waiting || []) as Aria2Download[],
+    stopped: (stopped || []) as Aria2Download[],
+  };
 }
 
 export function getFileName(download: Aria2Download): string {

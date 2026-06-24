@@ -17,7 +17,9 @@ export const ARIA2_DEFAULT_SAFE_MODE_HOSTS: string[] = [
   "fileditch.com",
   "uploadnow.io",
   "wdho.ru",
-  "mixdrop.",
+  "mixdrop.co",
+  "mixdrop.to",
+  "mixdrop.ch",
   "chomikuj.pl",
   "vikingfile.com",
   "dayuploads.com",
@@ -32,6 +34,8 @@ export const ARIA2_DEFAULT_SAFE_MODE_HOSTS: string[] = [
   "nitroflare.com",
   "filebin.net",
   "oshi.at",
+  "tmpfiles.org",
+  "f.ppy.sh",
 ];
 
 export interface BuiltInTheme {

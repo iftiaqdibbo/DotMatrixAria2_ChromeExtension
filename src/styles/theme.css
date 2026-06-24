@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════════════════════════════════
 
    This is the single source of truth for every visual decision in the
-   extension. style.css contains only structure — it references these tokens
+   extension. shared.css contains only structure — it references these tokens
    and never uses hard-coded values.
 
    To retheme the extension, edit ONLY this file.
@@ -69,7 +69,7 @@
         26,
         0.45
     ); /* ripple burst, focus rings   */
-    /* NOTE: style.css now references these via --accent-rgb / --amber-rgb / --green-rgb / --gray-300-rgb. */
+    /* NOTE: shared.css now references these via --accent-rgb / --amber-rgb / --green-rgb / --gray-300-rgb. */
 
     /* ── Amber family (warning / waiting) ──────────────────────────────────── */
     /* ⚠  All rgba() values must stay in sync with --p-amber-base.             */

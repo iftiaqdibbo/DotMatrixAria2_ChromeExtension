@@ -3,13 +3,23 @@
 
 function storageGet(keys: string[]): Promise<Record<string, unknown>> {
   return new Promise((resolve) => {
-    chrome.storage.local.get(keys, resolve as (result: Record<string, unknown>) => void);
+    chrome.storage.local.get(keys, (result) => {
+      if (chrome.runtime.lastError) {
+        console.warn("[Aria2] storageGet error:", chrome.runtime.lastError);
+      }
+      resolve((result || {}) as Record<string, unknown>);
+    });
   });
 }
 
 function storageSet(values: Record<string, unknown>): Promise<void> {
   return new Promise((resolve) => {
-    chrome.storage.local.set(values, resolve as () => void);
+    chrome.storage.local.set(values, () => {
+      if (chrome.runtime.lastError) {
+        console.warn("[Aria2] storageSet error:", chrome.runtime.lastError);
+      }
+      resolve();
+    });
   });
 }
 

@@ -37,7 +37,10 @@ async function unpauseDownload(gid: string) {
 }
 
 async function stopDownload(gid: string) {
-  return callAria2("aria2.remove", [gid]);
+  try {
+    await callAria2("aria2.forceRemove", [gid]);
+  } catch {}
+  return callAria2("aria2.removeDownloadResult", [gid]);
 }
 
 async function removeDownload(gid: string) {
@@ -53,12 +56,6 @@ interface DashboardDownloads {
   active: Aria2Download[];
   waiting: Aria2Download[];
   stopped: Aria2Download[];
-}
-
-declare global {
-  interface Window {
-    FullApp: () => HTMLElement;
-  }
 }
 
 export class Aria2Dashboard extends LitElement {
@@ -447,5 +444,3 @@ export class Aria2Dashboard extends LitElement {
 }
 
 customElements.define("aria2-dashboard", Aria2Dashboard);
-
-window.FullApp = () => document.createElement("aria2-dashboard");

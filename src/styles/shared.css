@@ -241,14 +241,11 @@ body {
 .toggle-slider {
     position: absolute;
     cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background-color: var(--border);
     transition:
         background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-        border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     border-radius: 24px;
 }
 
@@ -268,7 +265,7 @@ body {
 
 input:checked + .toggle-slider {
     background-color: var(--accent-dim);
-    border: 1px solid var(--accent);
+    box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 input:checked + .toggle-slider:before {
@@ -432,6 +429,45 @@ input:focus + .toggle-slider {
 
 .status-badge--error,
 .status-badge--removed {
+    border-color: var(--red);
+    color: var(--red);
+    background: var(--red-dim);
+}
+
+.status-active,
+.status-waiting,
+.status-paused,
+.status-complete,
+.status-error,
+.status-removed {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border: 1px solid;
+}
+.status-active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+}
+.status-waiting,
+.status-paused {
+    border-color: var(--amber);
+    color: var(--amber);
+    background: var(--amber-dim);
+}
+.status-complete {
+    border-color: var(--green);
+    color: var(--green);
+    background: var(--green-dim);
+}
+.status-error,
+.status-removed {
     border-color: var(--red);
     color: var(--red);
     background: var(--red-dim);
@@ -1996,4 +2032,38 @@ footer {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.confirm-dialog {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  min-width: 180px;
+  text-align: center;
+}
+
+.confirm-title {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
 }

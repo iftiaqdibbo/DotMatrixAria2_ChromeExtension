@@ -5,18 +5,7 @@ import {
   BuiltInTheme,
   ThemeId,
 } from "./constants";
-
-function storageGet(keys: string[]): Promise<Record<string, unknown>> {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(keys, resolve as (result: Record<string, unknown>) => void);
-  });
-}
-
-function storageSet(values: Record<string, unknown>): Promise<void> {
-  return new Promise((resolve) => {
-    chrome.storage.local.set(values, resolve as () => void);
-  });
-}
+import { storageGet, storageSet } from "./storage";
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   let cleaned = hex.replace("#", "");
@@ -83,8 +72,8 @@ export function computeCustomThemeVars(theme: CustomTheme): CustomThemeVars {
     "--accent-glow-soft": `rgba(${accentRGB}, 0.15)`,
     "--accent-glow-mid": `rgba(${accentRGB}, 0.35)`,
     "--accent-glow-hard": `rgba(${accentRGB}, 0.45)`,
-    "--red": theme.accent,
-    "--red-dim": `rgba(${accentRGB}, 0.08)`,
+    "--red": "#ff1a1a",
+    "--red-dim": "rgba(255, 26, 26, 0.08)",
     "--amber": theme.amber,
     "--amber-rgb": amberRGB,
     "--amber-dim": `rgba(${amberRGB}, 0.08)`,

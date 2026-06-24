@@ -11,53 +11,16 @@ const interceptedUrls = new Set();
 const knownCompletedGids = new Set();
 const retriedWithSafeMode = new Set();
 const COMPLETED_TRACKING_MAX = 200;
-const SESSION_KEY = "aria2_pending_downloads";
+const SAFE_MODE_RETRY_MAX = 200;
 
 function isFirefox() {
-  return typeof chrome.downloads.onDeterminingFilename !== "undefined";
-}
-
-async function trackDownloadItem(id, item) {
-  downloadItems[id] = item;
-  setTimeout(() => {
-    if (downloadItems[id]) {
-      delete downloadItems[id];
-    }
-  }, DOWNLOAD_ITEM_TTL);
-
-  try {
-    const data = await chrome.storage.session.get(SESSION_KEY);
-    const items = data[SESSION_KEY] || {};
-    items[id] = {
-      url: item.url,
-      referrer: item.referrer,
-      filename: item.filename,
-      finalUrl: item.finalUrl,
-      _ts: Date.now(),
-    };
-    await chrome.storage.session.set({ [SESSION_KEY]: items });
-  } catch {}
-}
-
-async function recoverDownloadItem(id) {
-  if (downloadItems[id]) return downloadItems[id];
-  try {
-    const data = await chrome.storage.session.get(SESSION_KEY);
-    const items = data[SESSION_KEY] || {};
-    const raw = items[id];
-    if (raw && Date.now() - raw._ts < DOWNLOAD_ITEM_TTL) {
-      const item = { id, url: raw.url, referrer: raw.referrer, filename: raw.filename, finalUrl: raw.finalUrl };
-      downloadItems[id] = item;
-      return item;
-    }
-  } catch {}
-  return null;
+  return typeof chrome.runtime.getBrowserInfo !== "undefined";
 }
 
 function formatCookies(cookies) {
-  if (!cookies) return "";
-  return cookies.reduce((acc, cookie) => {
-    return `${acc}${cookie.name}=${cookie.value};`;
+  if (!cookies || cookies.length === 0) return "";
+  return cookies.reduce((acc, cookie, i) => {
+    return acc + cookie.name + "=" + cookie.value + (i < cookies.length - 1 ? "; " : "");
   }, "");
 }
 
@@ -93,7 +56,7 @@ async function getCookiesForUrls(urls, storeId) {
       const trimmed = part.trim();
       if (trimmed && !seen.has(trimmed)) {
         seen.add(trimmed);
-        combined += trimmed + ";";
+        combined += (combined ? "; " : "") + trimmed;
       }
     });
   }
@@ -178,22 +141,29 @@ async function rpcCall(method, params) {
 
   console.log("[Aria2] RPC call:", method, JSON.stringify(params, null, 2));
 
-  const response = await fetch(rpcUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-  const result = await response.json();
-  if (result.error) {
-    console.error("[Aria2] RPC error:", JSON.stringify(result.error, null, 2));
-    throw new Error(result.error.message);
+    const result = await response.json();
+    if (result.error) {
+      console.error("[Aria2] RPC error:", JSON.stringify(result.error, null, 2));
+      throw new Error(result.error.message);
+    }
+    return result.result;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return result.result;
 }
 
 let badgePollTimeout;
@@ -246,6 +216,10 @@ async function updateBadgeFromAria2() {
     );
     for (const d of failed) {
       retriedWithSafeMode.add(d.gid);
+      if (retriedWithSafeMode.size > SAFE_MODE_RETRY_MAX) {
+        const iterator = retriedWithSafeMode.values();
+        retriedWithSafeMode.delete(iterator.next().value);
+      }
       const url = d.files[0].uris[0].uri;
       const filename = d.files[0].path ? basename(d.files[0].path) : d.gid;
       try {
@@ -296,6 +270,9 @@ async function addUriToAria2(
   if (referer) headers.push(`Referer: ${referer}`);
   if (cookies) headers.push(`Cookie: ${cookies}`);
   if (headers.length) options.header = headers;
+
+  options["allow-overwrite"] = "true";
+  options["auto-file-renaming"] = "false";
 
   const { aria2_default_download_path } = await chrome.storage.local.get([
     "aria2_default_download_path",
@@ -393,7 +370,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     if (info.linkUrl) {
       urls.push(info.linkUrl);
     } else if (info.selectionText) {
-      urls.push(...info.selectionText.split(/\s+/));
+      const urlRegex = /https?:\/\/[^\s"'}<>]+/g;
+      let match;
+      while ((match = urlRegex.exec(info.selectionText)) !== null) {
+        urls.push(match[0]);
+      }
+      if (urls.length === 0) {
+        urls.push(info.selectionText.trim());
+      }
     }
     const referer = tab?.url ?? "";
     const cookieStoreId = tab?.cookieStoreId;
@@ -420,11 +404,15 @@ async function removeDownloadItemCompletely(downloadItem) {
   } catch {
     try {
       await chrome.downloads.removeFile(downloadItem.id);
-    } catch {}
+    } catch (e) {
+      console.warn("[Aria2] removeFile/erase failed:", e);
+    }
   }
   try {
     await chrome.downloads.erase({ id: downloadItem.id });
-  } catch {}
+  } catch (e) {
+    console.warn("[Aria2] erase failed:", e);
+  }
 }
 
 async function downloadMustBeCaptured(item, referrer, settings) {
@@ -452,27 +440,15 @@ async function downloadMustBeCaptured(item, referrer, settings) {
     return false;
   }
 
-  if (interceptedUrls.has(url)) {
-    console.log(
-      "[Aria2] Skipping download - already intercepted by content script:",
-      url,
-    );
-    return false;
-  }
-
   return true;
 }
 
 function hostMatchesUrl(host, url) {
   try {
     const hostname = new URL(url).hostname;
-    if (host.endsWith(".")) {
-      const prefix = host.slice(0, -1);
-      return hostname === prefix || hostname.endsWith("." + prefix);
-    }
     return hostname === host || hostname.endsWith("." + host);
   } catch {
-    return url.includes(host);
+    return false;
   }
 }
 
@@ -533,15 +509,14 @@ async function handleDownload(downloadItem, handler) {
 chrome.downloads.onChanged.addListener(async (downloadDelta) => {
     let downloadItem = downloadItems[downloadDelta.id];
     if (!downloadItem) {
-      downloadItem = await recoverDownloadItem(downloadDelta.id);
-    }
-    if (!downloadItem && !isFirefox()) {
       try {
         const results = await chrome.downloads.search({ id: downloadDelta.id });
         if (results.length > 0) {
           downloadItem = results[0];
         }
-      } catch {}
+} catch (e) {
+        console.warn("[Aria2] download search failed:", e);
+      }
     }
     if (!downloadItem) {
       return;
@@ -564,8 +539,10 @@ chrome.downloads.onChanged.addListener(async (downloadDelta) => {
         } catch (err) {
           console.error("Failed to capture download:", err);
           showNotification("aria2 Error", err.message);
+        } finally {
+          delete downloadItems[item.id];
+          capturedIds.delete(item.id);
         }
-        delete downloadItems[item.id];
       });
     }
 
@@ -584,6 +561,10 @@ chrome.downloads.onChanged.addListener(async (downloadDelta) => {
 
 if (isFirefox()) {
   chrome.downloads.onCreated.addListener(async (downloadItem) => {
+    if (capturedIds.has(downloadItem.id)) return;
+    capturedIds.add(downloadItem.id);
+    downloadItems[downloadItem.id] = downloadItem;
+    setTimeout(() => { delete downloadItems[downloadItem.id]; }, DOWNLOAD_ITEM_TTL);
     await handleDownload(downloadItem, async (item, referrer, cookies) => {
       await removeDownloadItemCompletely(item);
       try {
@@ -595,6 +576,8 @@ if (isFirefox()) {
       } catch (err) {
         console.error("Failed to capture download:", err);
         showNotification("aria2 Error", err.message);
+      } finally {
+        capturedIds.delete(item.id);
       }
     });
   });
@@ -605,16 +588,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const referer = request.referrer ?? "";
     const url = request.url;
     isUrlFilteredByExtension(url)
-      .then((filtered) => {
+      .then(async (filtered) => {
         if (filtered) {
           sendResponse({ success: false, error: "File extension is filtered" });
           return;
         }
-        return getCookiesForUrls([referer, url]).then((cookies) =>
-          addUriToAria2(url, referer, cookies),
-        );
-      })
-      .then((result) => {
+        const cookies = await getCookiesForUrls([referer, url]);
+        const result = await addUriToAria2(url, referer, cookies);
         if (result) sendResponse({ success: true, gid: result });
       })
       .catch((err) => sendResponse({ success: false, error: err.message }));
@@ -636,19 +616,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     );
 
     isUrlFilteredByExtension(url)
-      .then((filtered) => {
+      .then(async (filtered) => {
         if (filtered) {
           console.log("[Aria2] Skipping filtered URL:", url);
           sendResponse({ success: false, error: "File extension is filtered" });
           return;
         }
-        return getSafeModeOptions(url).then((extraOptions) =>
-          getCookiesForUrls([referer, url], cookieStoreId).then((cookies) =>
-            addUriToAria2(url, referer, cookies, null, null, extraOptions),
-          ),
-        );
-      })
-      .then((result) => {
+        const extraOptions = await getSafeModeOptions(url);
+        const cookies = await getCookiesForUrls([referer, url], cookieStoreId);
+        const result = await addUriToAria2(url, referer, cookies, null, null, extraOptions);
         if (result) sendResponse({ success: true, gid: result });
       })
       .catch((err) => sendResponse({ success: false, error: err.message }));

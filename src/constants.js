@@ -17,7 +17,9 @@ const ARIA2_DEFAULT_SAFE_MODE_HOSTS = [
   "fileditch.com",
   "uploadnow.io",
   "wdho.ru",
-  "mixdrop.",
+  "mixdrop.co",
+  "mixdrop.to",
+  "mixdrop.ch",
   "chomikuj.pl",
   "vikingfile.com",
   "dayuploads.com",
@@ -32,4 +34,6 @@ const ARIA2_DEFAULT_SAFE_MODE_HOSTS = [
   "nitroflare.com",
   "filebin.net",
   "oshi.at",
+  "tmpfiles.org",
+  "f.ppy.sh",
 ];

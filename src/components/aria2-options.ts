@@ -15,8 +15,8 @@ import {
   escapeHtml,
 } from "../lib/shared";
 import { getCustomThemes, saveCustomThemes, getAllThemes } from "../lib/theme";
+import { storageSet } from "../lib/storage";
 import "./aria2-logo";
-import "./aria2-chip-list";
 import "./aria2-theme-editor";
 
 export class Aria2Options extends LitElement {
@@ -141,7 +141,7 @@ export class Aria2Options extends LitElement {
       return;
     }
     this._hosts = [...this._hosts, host];
-    chrome.storage.local.set({ aria2_safe_mode_hosts: this._hosts });
+    storageSet({ aria2_safe_mode_hosts: this._hosts });
     this._newHost = "";
   }
 
@@ -149,11 +149,11 @@ export class Aria2Options extends LitElement {
     const hosts = [...this._hosts];
     hosts.splice(index, 1);
     this._hosts = hosts;
-    chrome.storage.local.set({ aria2_safe_mode_hosts: this._hosts });
+    storageSet({ aria2_safe_mode_hosts: this._hosts });
   }
 
   private _addFilter() {
-    let ext = this._newFilter.trim();
+    let ext = this._newFilter.replace(/\s/g, "");
     if (!ext) return;
     if (ext.startsWith(".")) ext = ext.toLowerCase();
     else ext = "." + ext.toLowerCase();
@@ -162,7 +162,7 @@ export class Aria2Options extends LitElement {
       return;
     }
     this._filters = [...this._filters, ext];
-    chrome.storage.local.set({ aria2_filter_extensions: this._filters });
+    storageSet({ aria2_filter_extensions: this._filters });
     this._newFilter = "";
   }
 
@@ -170,7 +170,7 @@ export class Aria2Options extends LitElement {
     const filters = [...this._filters];
     filters.splice(index, 1);
     this._filters = filters;
-    chrome.storage.local.set({ aria2_filter_extensions: this._filters });
+    storageSet({ aria2_filter_extensions: this._filters });
   }
 
   private async _onThemeChange(e: Event) {

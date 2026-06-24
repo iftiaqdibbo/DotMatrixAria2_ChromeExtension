@@ -15,10 +15,13 @@ async function unpauseDownload(gid: string) {
 }
 
 async function stopDownload(gid: string) {
-  return callAria2("aria2.remove", [gid]);
+  try {
+    await callAria2("aria2.forceRemove", [gid]);
+  } catch {}
+  return callAria2("aria2.removeDownloadResult", [gid]);
 }
 
-async function removeDownload(gid: string) {
+async function deleteDownload(gid: string) {
   try { await callAria2("aria2.forceRemove", [gid]); } catch {}
   return callAria2("aria2.removeDownloadResult", [gid]);
 }
@@ -37,6 +40,7 @@ export class Aria2Popup extends LitElement {
   @state() private _connectionStatus = "checking...";
   @state() private _connectionClass = "";
   @state() private _error: string | null = null;
+  @state() private _confirmGid: string | null = null;
 
   private _pollTimeout: number | null = null;
   private _POLL_FAST_MS = 1000;
@@ -107,11 +111,14 @@ export class Aria2Popup extends LitElement {
   private async _handleAction(e: CustomEvent) {
     const { action, gid } = e.detail;
     try {
+      if (action === "remove") {
+        this._confirmGid = gid;
+        return;
+      }
       switch (action) {
         case "pause": await pauseDownload(gid); break;
         case "resume": await unpauseDownload(gid); break;
         case "stop": await stopDownload(gid); break;
-        case "remove": await removeDownload(gid); break;
         case "move-up": await moveDownload(gid, -1, "POS_CUR"); break;
         case "move-down": await moveDownload(gid, 1, "POS_CUR"); break;
       }
@@ -121,10 +128,26 @@ export class Aria2Popup extends LitElement {
     }
   }
 
+  private async _confirmRemove() {
+    if (!this._confirmGid) return;
+    const gid = this._confirmGid;
+    this._confirmGid = null;
+    try {
+      await deleteDownload(gid);
+      await this._loadData();
+    } catch (err) {
+      console.error("Remove failed:", err);
+    }
+  }
+
+  private _cancelRemove() {
+    this._confirmGid = null;
+  }
+
   private _onHijackChange(e: Event) {
     const checked = (e.target as HTMLInputElement).checked;
     this._hijackEnabled = checked;
-    setHijackStatus(checked);
+    setHijackStatus(checked).catch(() => {});
   }
 
   private _openFull(e: Event) {
@@ -225,13 +248,18 @@ export class Aria2Popup extends LitElement {
           <span class="connection-status ${this._connectionClass}">${this._connectionStatus}</span>
         </footer>
       </div>
+      ${this._confirmGid ? html`
+        <div class="confirm-overlay" @click=${this._cancelRemove}>
+          <div class="confirm-dialog" @click=${(e: Event) => e.stopPropagation()}>
+            <div class="confirm-title">remove download?</div>
+            <div class="confirm-actions">
+              <button class="btn btn-primary" @click=${this._confirmRemove}>remove</button>
+              <button class="btn btn-secondary" @click=${this._cancelRemove}>cancel</button>
+            </div>
+          </div>
+        </div>` : nothing}
     `;
   }
 }
 
 customElements.define("aria2-popup", Aria2Popup);
-
-const root = document.getElementById("root");
-if (root) {
-  root.appendChild(document.createElement("aria2-popup"));
-}

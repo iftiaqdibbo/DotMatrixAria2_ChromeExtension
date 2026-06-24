@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
-import { resolve } from "path";
+import { resolve } from "node:path";
 
 export default defineConfig(({ mode }) => {
   const isFirefox = mode === "firefox";

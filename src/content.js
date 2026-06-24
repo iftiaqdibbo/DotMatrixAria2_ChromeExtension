@@ -102,11 +102,11 @@
     });
   }
 
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && "aria2_hijack_downloads" in changes) {
-    cachedHijackEnabled = changes.aria2_hijack_downloads.newValue || false;
-  }
-});
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && "aria2_hijack_downloads" in changes) {
+      cachedHijackEnabled = changes.aria2_hijack_downloads.newValue || false;
+    }
+  });
 
   async function sendToAria2(url, siteName) {
     if (!url || !url.startsWith("http")) return;

@@ -227,7 +227,7 @@ Changes take effect immediately — no need to save or reload.
 - Complete download management
 - Tabbed interface (active/waiting/stopped)
 - Reorder waiting downloads (move up/down in queue)
-- Gear icon opens embedded options panel (General + Safe Mode + Filters + Themes tabs)
+- Gear icon opens embedded options panel (General + Safe Mode + Filters + Themes + Speed Test tabs)
 - Real-time updates
 
 ### Options Page
@@ -235,6 +235,7 @@ Changes take effect immediately — no need to save or reload.
 - **Safe Mode tab**: Safe mode toggle, managed sites list with add/remove
 - **Filters tab**: File extension filter list with add/remove — block specific file types from being captured
 - **Themes tab**: Built-in theme previews, custom theme list with create/edit/delete
+- **Speed Test tab**: Download speed measurement using Cloudflare's speed test CDN — tests 10MB, 50MB, or 100MB downloads through aria2
 - Accessible from popup (gear icon), full dashboard (gear icon), or `chrome://extensions` → options
 
 ### Download Hijacking

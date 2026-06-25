@@ -5,6 +5,7 @@ import {
   ARIA2_THEMES,
   ARIA2_DEFAULT_SAFE_MODE_HOSTS,
   ARIA2_DEFAULT_RPC_URL,
+  ARIA2_SPEED_TEST_URLS,
   CustomTheme,
   ThemeId,
 } from "../lib/constants";
@@ -13,6 +14,11 @@ import {
   saveConfig,
   testConnectionWithParams,
   escapeHtml,
+  startSpeedTest,
+  pollSpeedTest,
+  stopSpeedTest,
+  formatSpeed,
+  SPEED_TEST_POLL_MS,
 } from "../lib/shared";
 import { getCustomThemes, saveCustomThemes, getAllThemes } from "../lib/theme";
 import { storageSet } from "../lib/storage";
@@ -41,6 +47,13 @@ export class Aria2Options extends LitElement {
   @state() private _editorOpen = false;
   @state() private _editingTheme: { name: string; accent: string; amber: string; green: string } | null = null;
   @state() private _editingIndex: number | null = null;
+  @state() private _speedTestRunning = false;
+  @state() private _speedTestLabel = "10MB";
+  @state() private _speedTestSpeed = "";
+  @state() private _speedTestProgress = 0;
+  @state() private _speedTestStatus = "";
+  private _speedTestGid: string | null = null;
+  private _speedTestPollTimer: number | null = null;
 
   private _storageListener: ((changes: Record<string, chrome.storage.StorageChange>, area: string) => void) | null = null;
 
@@ -66,13 +79,6 @@ export class Aria2Options extends LitElement {
       }
     };
     chrome.storage.onChanged.addListener(this._storageListener);
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    if (this._storageListener) {
-      chrome.storage.onChanged.removeListener(this._storageListener);
-    }
   }
 
   private async _loadSettings() {
@@ -228,6 +234,73 @@ export class Aria2Options extends LitElement {
     await this._refreshCustomThemes();
   }
 
+  private async _startSpeedTest() {
+    this._speedTestRunning = true;
+    this._speedTestSpeed = "";
+    this._speedTestProgress = 0;
+    this._speedTestStatus = "starting...";
+    const url = ARIA2_SPEED_TEST_URLS[this._speedTestLabel as keyof typeof ARIA2_SPEED_TEST_URLS];
+    if (!url) { this._speedTestStatus = "invalid size"; this._speedTestRunning = false; return; }
+    try {
+      const state = await startSpeedTest(this._speedTestLabel, url);
+      this._speedTestGid = state.gid;
+      this._speedTestStatus = "running";
+      this._pollSpeedTest();
+    } catch (err) {
+      this._speedTestStatus = "failed: " + (err as Error).message;
+      this._speedTestRunning = false;
+    }
+  }
+
+  private _pollSpeedTest() {
+    if (!this._speedTestGid) return;
+    pollSpeedTest(this._speedTestGid).then((result) => {
+      if (!result || result.status === "removed") {
+        this._speedTestStatus = "stopped";
+        this._speedTestRunning = false;
+        return;
+      }
+      this._speedTestSpeed = formatSpeed(result.speed);
+      if (result.totalLength > 0) {
+        this._speedTestProgress = Math.round((result.completedLength / result.totalLength) * 100);
+      }
+      if (result.status === "complete") {
+        this._speedTestStatus = "complete";
+        this._speedTestRunning = false;
+        stopSpeedTest(this._speedTestGid!).catch(() => {});
+        this._speedTestGid = null;
+        return;
+      }
+      if (this._speedTestRunning) {
+        this._speedTestPollTimer = window.setTimeout(() => this._pollSpeedTest(), SPEED_TEST_POLL_MS);
+      }
+    }).catch(() => {
+      this._speedTestStatus = "error";
+      this._speedTestRunning = false;
+    });
+  }
+
+  private async _stopSpeedTest() {
+    this._speedTestRunning = false;
+    if (this._speedTestPollTimer !== null) {
+      clearTimeout(this._speedTestPollTimer);
+      this._speedTestPollTimer = null;
+    }
+    if (this._speedTestGid) {
+      await stopSpeedTest(this._speedTestGid);
+      this._speedTestGid = null;
+    }
+    this._speedTestStatus = "stopped";
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this._storageListener) {
+      chrome.storage.onChanged.removeListener(this._storageListener);
+    }
+    this._stopSpeedTest();
+  }
+
   private _themeSwatchColor(): string {
     const found = this._themeSelectOptions.find(t => t.id === this._theme);
     return found ? found.accent : "#ff1a1a";
@@ -251,6 +324,10 @@ export class Aria2Options extends LitElement {
         <button class="options-tab ${this._activeTab === "themes" ? "active" : ""}" data-tab="themes" @click=${() => this._switchTab("themes")}>
           <span class="tab-dot tab-dot--themes"></span>
           themes
+        </button>
+        <button class="options-tab ${this._activeTab === "speed-test" ? "active" : ""}" data-tab="speed-test" @click=${() => this._switchTab("speed-test")}>
+          <span class="tab-dot tab-dot--speed"></span>
+          speed test
         </button>
       </div>
 
@@ -476,6 +553,46 @@ export class Aria2Options extends LitElement {
               @theme-save=${this._onThemeSave}
               @theme-cancel=${this._onThemeCancel}
             ></aria2-theme-editor>
+          </div>
+        </div>
+
+        <div class="tab-panel ${this._activeTab === "speed-test" ? "active" : ""}" id="tab-speed-test">
+          <div class="settings-container">
+            <section class="settings-section">
+              <h2 class="section-title"><span class="dot-indicator"></span>download speed test</h2>
+              <div class="form-group">
+                <span class="input-hint input-hint--block">Downloads a test file via aria2 and measures the transfer speed. The test file is removed automatically when complete.</span>
+                <div class="speed-test-controls">
+                  <select class="input" .value=${this._speedTestLabel} @change=${(e: Event) => this._speedTestLabel = (e.target as HTMLSelectElement).value} ?disabled=${this._speedTestRunning}>
+                    <option value="10MB">10 MB</option>
+                    <option value="50MB">50 MB</option>
+                    <option value="100MB">100 MB</option>
+                  </select>
+                  ${!this._speedTestRunning
+                    ? html`<button class="btn btn-primary" @click=${this._startSpeedTest}>start test</button>`
+                    : html`<button class="btn btn-secondary" @click=${this._stopSpeedTest}>stop</button>`}
+                </div>
+              </div>
+              ${this._speedTestRunning || this._speedTestSpeed || this._speedTestStatus ? html`
+                <div class="speed-test-results">
+                  <div class="speed-test-stat">
+                    <span class="speed-test-stat-label">speed</span>
+                    <span class="speed-test-stat-value">${this._speedTestSpeed || "—"}</span>
+                  </div>
+                  <div class="speed-test-stat">
+                    <span class="speed-test-stat-label">progress</span>
+                    <span class="speed-test-stat-value">${this._speedTestProgress}%</span>
+                  </div>
+                  <div class="speed-test-stat">
+                    <span class="speed-test-stat-label">status</span>
+                    <span class="speed-test-stat-value speed-test-status-${this._speedTestStatus}">${this._speedTestStatus}</span>
+                  </div>
+                </div>
+                <div class="speed-test-bar">
+                  <div class="speed-test-bar-fill" style="width:${this._speedTestProgress}%"></div>
+                </div>
+              ` : nothing}
+            </section>
           </div>
         </div>
       </div>

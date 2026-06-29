@@ -228,39 +228,25 @@ export function escapeHtml(text: string | null | undefined): string {
   return div.innerHTML;
 }
 
-const SPEED_TEST_POLL_MS = 1000;
-
-export interface SpeedTestState {
-  gid: string;
-  url: string;
-  label: string;
-  startTime: number;
+export async function measureRpcLatency(samples = 5): Promise<{ min: number; avg: number; max: number }> {
+  const times: number[] = [];
+  for (let i = 0; i < samples; i++) {
+    const start = performance.now();
+    await callAria2("aria2.getVersion");
+    times.push(performance.now() - start);
+  }
+  return {
+    min: Math.round(Math.min(...times)),
+    avg: Math.round(times.reduce((a, b) => a + b, 0) / times.length),
+    max: Math.round(Math.max(...times)),
+  };
 }
 
-export async function startSpeedTest(label: string, url: string): Promise<SpeedTestState> {
-  const gid = await callAria2("aria2.addUri", [[url], { "allow-overwrite": "true", "auto-file-renaming": "false" }]);
-  return { gid: gid as string, url, label, startTime: Date.now() };
-}
-
-export async function pollSpeedTest(gid: string): Promise<{ speed: number; completedLength: number; totalLength: number; status: string } | null> {
+export async function getGlobalDownloadSpeed(): Promise<number> {
   try {
-    const result: unknown = await callAria2("aria2.tellStatus", [gid, ["downloadSpeed", "completedLength", "totalLength", "status"]]);
-    const d = result as Record<string, string>;
-    if (!d || d.status === "removed") return null;
-    return {
-      speed: parseInt(d.downloadSpeed || "0", 10),
-      completedLength: parseInt(d.completedLength || "0", 10),
-      totalLength: parseInt(d.totalLength || "0", 10),
-      status: d.status,
-    };
+    const stat: unknown = await callAria2("aria2.getGlobalStat");
+    return parseInt((stat as Record<string, string>).downloadSpeed || "0", 10);
   } catch {
-    return null;
+    return 0;
   }
 }
-
-export async function stopSpeedTest(gid: string): Promise<void> {
-  try { await callAria2("aria2.forceRemove", [gid]); } catch {}
-  try { await callAria2("aria2.removeDownloadResult", [gid]); } catch {}
-}
-
-export { SPEED_TEST_POLL_MS };

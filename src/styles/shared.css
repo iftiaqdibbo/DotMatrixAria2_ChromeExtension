@@ -1950,10 +1950,6 @@ footer {
     margin-top: 12px;
 }
 
-.speed-test-controls select {
-    flex: 0 0 140px;
-}
-
 .speed-test-results {
     display: flex;
     gap: 24px;
@@ -1997,20 +1993,17 @@ footer {
     color: var(--red);
 }
 
-.speed-test-bar {
-    margin-top: 12px;
-    height: 4px;
-    background: var(--border, rgba(255,255,255,0.08));
-    border-radius: 2px;
-    overflow: hidden;
+.speed-test-status-measuring-latency,
+.speed-test-status-monitoring-global-speed {
+    color: var(--amber);
 }
 
-.speed-test-bar-fill {
-    height: 100%;
-    background: var(--accent);
-    border-radius: 2px;
-    transition: width 0.3s ease;
-    box-shadow: 0 0 6px var(--accent-glow);
+.speed-test-status-active-downloads-detected {
+    color: var(--green);
+}
+
+.speed-test-status-no-active-downloads {
+    color: var(--text-muted, #707070);
 }
 
 .hidden {

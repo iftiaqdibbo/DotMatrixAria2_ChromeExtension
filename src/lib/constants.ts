@@ -63,9 +63,3 @@ export interface CustomTheme {
 export type ThemeId = BuiltInTheme["id"] | `custom:${string}`;
 
 export const ARIA2_CUSTOM_THEMES_KEY = "aria2_custom_themes";
-
-export const ARIA2_SPEED_TEST_URLS = {
-  "100MB": "https://speed.cloudflare.com/__down?bytes=100000000",
-  "50MB": "https://speed.cloudflare.com/__down?bytes=50000000",
-  "10MB": "https://speed.cloudflare.com/__down?bytes=10000000",
-} as const;

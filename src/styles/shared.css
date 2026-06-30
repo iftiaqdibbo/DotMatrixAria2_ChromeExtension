@@ -709,8 +709,49 @@ input:focus + .toggle-slider {
     font-family: var(--font-mono);
     font-size: 0.7rem;
     color: var(--text-secondary);
-    min-width: 32px;
+    min-width: 40px;
     text-align: right;
+}
+
+/* Smooth progress bar – replaces dot-progress for active downloads */
+.progress-bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    width: 0%;
+    transition: width 100ms linear;
+    box-shadow: 0 0 8px var(--accent-glow);
+    position: relative;
+}
+
+.progress-bar-fill::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 12px;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15));
+    border-radius: 0 3px 3px 0;
+}
+
+.progress-bar-fill.indeterminate {
+    width: 30% !important;
+    animation: bar-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes bar-indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
 }
 
 /* Popup Footer */

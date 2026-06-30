@@ -1,6 +1,8 @@
 const ARIA2_DEFAULT_RPC_URL = "http://localhost:6800/jsonrpc";
 
-const ARIA2_DEFAULT_FILTER_EXTENSIONS = [];
+const ARIA2_DEFAULT_FILTER_EXTENSIONS = [
+  ".torrent",
+];
 
 const ARIA2_DEFAULT_SAFE_MODE_HOSTS = [
   "gofile.io",

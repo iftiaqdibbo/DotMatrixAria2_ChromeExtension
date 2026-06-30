@@ -21,7 +21,7 @@ async function addDownload(urls: string[], options: Record<string, string> = {})
   const config = await getConfig();
   const params: unknown[] = [urls];
   if (config.downloadPath || options.dir) {
-    params.push({ dir: options.dir || config.downloadPath, ...options });
+    params.push({ "always-resume": "false", dir: options.dir || config.downloadPath, ...options });
   } else if (Object.keys(options).length > 0) {
     params.push(options);
   }
@@ -72,7 +72,7 @@ export class Aria2Dashboard extends LitElement {
   @state() private _addError = "";
 
   private _pollTimeout: number | null = null;
-  private _POLL_FAST_MS = 1000;
+  private _POLL_FAST_MS = 500;
   private _POLL_IDLE_MS = 2500;
   private _POLL_ERROR_MS = 5000;
   private _knownGids = new Set<string>();

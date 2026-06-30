@@ -43,7 +43,7 @@ export class Aria2Popup extends LitElement {
   @state() private _confirmGid: string | null = null;
 
   private _pollTimeout: number | null = null;
-  private _POLL_FAST_MS = 1000;
+  private _POLL_FAST_MS = 500;
   private _POLL_IDLE_MS = 2500;
   private _POLL_ERROR_MS = 5000;
   private _knownGids = new Set<string>();

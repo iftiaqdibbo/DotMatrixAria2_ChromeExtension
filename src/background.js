@@ -224,6 +224,7 @@ async function updateBadgeFromAria2() {
       const filename = d.files[0].path ? basename(d.files[0].path) : d.gid;
       try {
         const options = {
+          "always-resume": "false",
           "max-connection-per-server": "1",
           split: "1",
           "enable-http-pipelining": "false",
@@ -258,6 +259,11 @@ async function addUriToAria2(
   directory,
   extraOptions,
 ) {
+  if (url && url.startsWith("magnet:")) {
+    console.log("[Aria2] Skipping magnet URL:", url);
+    return null;
+  }
+
   if (interceptedUrls.has(url)) {
     console.log("[Aria2] Skipping duplicate URL:", url);
     return null;
@@ -271,8 +277,7 @@ async function addUriToAria2(
   if (cookies) headers.push(`Cookie: ${cookies}`);
   if (headers.length) options.header = headers;
 
-  options["allow-overwrite"] = "true";
-  options["auto-file-renaming"] = "false";
+  options["always-resume"] = "false";
 
   const { aria2_default_download_path } = await chrome.storage.local.get([
     "aria2_default_download_path",
@@ -383,6 +388,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const cookieStoreId = tab?.cookieStoreId;
     const cookies = await getCookiesForUrls([referer, ...urls], cookieStoreId);
     for (const url of urls) {
+      if (url && url.startsWith("magnet:")) {
+        console.log("[Aria2] Skipping magnet URL from context menu:", url);
+        continue;
+      }
       if (await isUrlFilteredByExtension(url)) {
         console.log("[Aria2] Skipping filtered URL from context menu:", url);
         continue;
@@ -422,11 +431,11 @@ async function downloadMustBeCaptured(item, referrer, settings) {
 
   const url = item.finalUrl || item.url;
 
+  if (url && url.startsWith("magnet:")) {
+    return false;
+  }
+
   if (await isFileFilteredByExtension(item)) {
-    console.log(
-      "[Aria2] Skipping download - file extension is filtered:",
-      url,
-    );
     return false;
   }
 
@@ -587,6 +596,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "ADD_DOWNLOAD") {
     const referer = request.referrer ?? "";
     const url = request.url;
+    if (url && url.startsWith("magnet:")) {
+      sendResponse({ success: false, error: "Magnet links are not supported" });
+      return true;
+    }
     isUrlFilteredByExtension(url)
       .then(async (filtered) => {
         if (filtered) {
@@ -604,6 +617,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "ADD_DOWNLOAD_INTERCEPT") {
     const referer = request.referrer ?? sender.tab?.url ?? "";
     const url = request.url;
+    if (url && url.startsWith("magnet:")) {
+      sendResponse({ success: false, error: "Magnet links are not supported" });
+      return true;
+    }
     const cookieStoreId = sender.tab?.cookieStoreId;
     const siteName = request.siteName || "";
     console.log(

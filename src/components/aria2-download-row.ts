@@ -21,7 +21,73 @@ export class Aria2DownloadRow extends LitElement {
   @property({ type: Number }) listIndex = 0;
   @property({ type: Number }) totalInTab = 0;
 
+  private _smoothPercent = 0;
+  private _rafId = 0;
+  private _lastCompleted = 0;
+  private _lastSpeed = 0;
+  private _lastUpdate = 0;
+  private _barEl: HTMLElement | null = null;
+  private _barRoot: HTMLElement | null = null;
+
   createRenderRoot() { return this; }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._stopSmooth();
+  }
+
+  private _startSmooth() {
+    cancelAnimationFrame(this._rafId);
+    const tick = () => {
+      const d = this.download;
+      if (!d || d.status !== "active") { this._stopSmooth(); return; }
+      const now = performance.now();
+      const elapsed = (now - this._lastUpdate) / 1000;
+      const estimated = this._lastCompleted + this._lastSpeed * elapsed;
+      const total = parseInt(d.totalLength) || 1;
+      const pct = total > 0 ? Math.min((estimated / total) * 100, 99.9) : 0;
+      this._smoothPercent = pct;
+      if (this._barEl) {
+        this._barEl.style.width = Math.round(pct) + "%";
+      }
+      this._rafId = requestAnimationFrame(tick);
+    };
+    this._rafId = requestAnimationFrame(tick);
+  }
+
+  private _stopSmooth() {
+    cancelAnimationFrame(this._rafId);
+    this._rafId = 0;
+  }
+
+  willUpdate(changed: Map<string, unknown>) {
+    if (!changed.has("download")) return;
+    const d = this.download;
+    if (!d) { this._stopSmooth(); return; }
+    if (d.status === "active") {
+      this._lastCompleted = parseInt(d.completedLength);
+      this._lastSpeed = parseInt(d.downloadSpeed);
+      this._lastUpdate = performance.now();
+      this._startSmooth();
+    } else {
+      this._stopSmooth();
+      this._smoothPercent = d.status === "complete" ? 100 : this._calcPercent(d);
+    }
+  }
+
+  private _calcPercent(d: Aria2Download): number {
+    const total = parseInt(d.totalLength) || 1;
+    const completed = parseInt(d.completedLength);
+    return total > 0 ? Math.min((completed / total) * 100, 100) : 0;
+  }
+
+  private _onBarRef(el: Element | null) {
+    this._barEl = el as HTMLElement | null;
+  }
+
+  private _onTrackRef(el: Element | null) {
+    this._barRoot = el as HTMLElement | null;
+  }
 
   private _dispatch(action: string) {
     this.dispatchEvent(new CustomEvent("download-action", {
@@ -41,12 +107,12 @@ export class Aria2DownloadRow extends LitElement {
   private _renderCompact(d: Aria2Download) {
     const total = parseInt(d.totalLength) || 1;
     const completed = parseInt(d.completedLength);
-    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const percent = this._smoothPercent || (total > 0 ? (completed / total) * 100 : 0);
     const canMoveUp = this.waitingIndex > 0;
     const canMoveDown = this.waitingIndex >= 0 && this.waitingIndex < this.totalWaiting - 1;
     const isRecent = d.status === "complete";
 
-    if (isRecent) return this._renderRecentCompact(d, total, percent);
+    if (isRecent) return this._renderRecentCompact(d, total, completed);
 
     return html`
       <div class="download-item popup-item ${d.status === "active" ? "row--active" : ""}">
@@ -67,15 +133,16 @@ export class Aria2DownloadRow extends LitElement {
           </div>
         </div>
         <div class="download-progress">
-          ${this._renderDotProgressMini(percent)}
-          <span class="progress-text">${percent}%</span>
+          ${this._renderSmoothBar(percent, d.status)}
+          <span class="progress-text">${Math.round(percent)}%</span>
         </div>
       </div>
     `;
   }
 
-  private _renderRecentCompact(d: Aria2Download, total: number, percent: number) {
+  private _renderRecentCompact(d: Aria2Download, total: number, completed: number) {
     const completedTime = d.completedTime ? formatCompletedTime(d.completedTime) : "";
+    const percent = total > 0 ? (completed / total) * 100 : 0;
 
     return html`
       <div class="download-item popup-item">
@@ -93,8 +160,8 @@ export class Aria2DownloadRow extends LitElement {
           </div>
         </div>
         <div class="download-progress">
-          ${this._renderDotProgressMini(percent)}
-          <span class="progress-text">${percent}%</span>
+          ${this._renderSmoothBar(percent, d.status)}
+          <span class="progress-text">${Math.round(percent)}%</span>
         </div>
       </div>
     `;
@@ -103,7 +170,7 @@ export class Aria2DownloadRow extends LitElement {
   private _renderFull(d: Aria2Download) {
     const total = parseInt(d.totalLength) || 1;
     const completed = parseInt(d.completedLength);
-    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const percent = this._smoothPercent || (total > 0 ? (completed / total) * 100 : 0);
     const speed = parseInt(d.downloadSpeed) || 0;
     const canMoveUp = this.listIndex > 0;
     const canMoveDown = this.listIndex < this.totalInTab - 1;
@@ -121,12 +188,6 @@ export class Aria2DownloadRow extends LitElement {
         <span>completed: <strong>${completedTime}</strong></span>`;
     }
 
-    const dotCount = 20;
-    const filledDots = Math.round((percent / 100) * dotCount);
-    const dots = Array.from({ length: dotCount }, (_, i) =>
-      html`<span class="dot ${i < filledDots ? "dot--filled" : ""}" style="--i:${i}"></span>`
-    );
-
     return html`
       <div class="download-row ${d.status === "active" ? "row--active" : ""}" data-gid=${d.gid}>
         <div class="download-row-header">
@@ -137,8 +198,8 @@ export class Aria2DownloadRow extends LitElement {
           ${detailsHTML}
         </div>
         <div class="download-progress-full">
-          <div class="dot-progress">${dots}</div>
-          <span class="progress-text">${percent}%</span>
+          ${this._renderSmoothBar(percent, d.status)}
+          <span class="progress-text">${Math.round(percent)}%</span>
         </div>
         <div class="download-actions">
           ${canMoveUp ? html`<button class="btn btn-action btn-move-up" @click=${() => this._dispatch("move-up")}><span class="btn-dot-indicator btn-dot-move"></span>▲ up</button>` : nothing}
@@ -152,12 +213,11 @@ export class Aria2DownloadRow extends LitElement {
     `;
   }
 
-  private _renderDotProgressMini(percent: number) {
+  private _renderSmoothBar(percent: number, status: string) {
+    const indeterminate = status === "waiting" || (status === "active" && percent <= 0);
     return html`
-      <div class="dot-progress mini">
-        ${Array.from({ length: 12 }, (_, i) =>
-          html`<span class="dot ${i < Math.round((percent / 100) * 12) ? "filled" : ""}" style="--i:${i}"></span>`
-        )}
+      <div class="progress-bar-track" ${this._onTrackRef}>
+        <div class="progress-bar-fill ${indeterminate ? "indeterminate" : ""}" style="width: ${Math.round(percent)}%" ${this._onBarRef}></div>
       </div>
     `;
   }

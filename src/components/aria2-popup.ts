@@ -1,3 +1,5 @@
+/// <reference types="chrome" />
+
 import { LitElement, html, nothing } from "lit";
 import { state } from "lit/decorators.js";
 import { repeat } from "lit/directives/repeat.js";
@@ -127,9 +129,24 @@ export class Aria2Popup extends LitElement {
     setHijackStatus(checked);
   }
 
-  private _openFull(e: Event) {
+  private async _openSettings(e: Event) {
     e.preventDefault();
-    chrome.tabs.create({ url: chrome.runtime.getURL("src/entries/full.html") });
+    await chrome.runtime.openOptionsPage();
+    window.close();
+  }
+
+  private async _openFull(e: Event) {
+    e.preventDefault();
+    const url = chrome.runtime.getURL("src/entries/full.html");
+    const allTabs = await chrome.tabs.query({});
+    const existing = allTabs.find(t => t.url === url);
+    if (existing) {
+      await chrome.tabs.update(existing.id!, { active: true });
+      await chrome.windows.update(existing.windowId, { focused: true });
+      window.close();
+    } else {
+      chrome.tabs.create({ url });
+    }
   }
 
   render() {
@@ -151,7 +168,7 @@ export class Aria2Popup extends LitElement {
               <input type="checkbox" ?checked=${this._hijackEnabled} @change=${this._onHijackChange}>
               <span class="toggle-slider"></span>
             </label>
-            <button class="btn-icon" @click=${this._openFull} title="Open full dashboard">
+            <button class="btn-icon" @click=${this._openSettings} title="Settings">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>

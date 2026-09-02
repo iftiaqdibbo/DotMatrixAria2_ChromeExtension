@@ -1954,6 +1954,11 @@ footer {
     }
 }
 
+.options-page-wrapper {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;

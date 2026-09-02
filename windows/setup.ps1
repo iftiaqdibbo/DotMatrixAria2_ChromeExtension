@@ -117,6 +117,44 @@ function Get-ConfValue {
     return $null
 }
 
+function Get-PortOwner {
+    # Best-effort name of the process listening on a local port.
+    param([int]$PortNumber)
+    try {
+        $conns = @(Get-NetTCPConnection -LocalPort $PortNumber -State Listen -ErrorAction SilentlyContinue)
+        foreach ($c in $conns) {
+            $p = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
+            if ($p) { return "$($p.ProcessName) (pid $($p.Id))" }
+        }
+    } catch { }
+    try {
+        $lines = @(netstat -ano | Select-String ":$PortNumber\s" | Select-String "LISTENING")
+        if ($lines.Count -gt 0) {
+            $ownerPid = ($lines[0].ToString().Trim() -split "\s+")[-1]
+            $p = Get-Process -Id $ownerPid -ErrorAction SilentlyContinue
+            if ($p) { return "$($p.ProcessName) (pid $($p.Id))" }
+            return "pid $ownerPid"
+        }
+    } catch { }
+    return "unknown process"
+}
+
+function Get-RpcState {
+    # Classifies whatever answers the RPC port:
+    #   "ours"         - an aria2 accepting our secret is running
+    #   "other-secret" - an aria2 is listening, but rejects our token
+    #   "not-aria2"    - the port answers, but it is not an aria2 RPC server
+    param([string]$RpcSecret)
+    try {
+        $response = Invoke-Aria2Rpc -Method "aria2.getVersion" -RpcSecret $RpcSecret
+    } catch {
+        return "not-aria2"
+    }
+    if ($response -and $response.result -and $response.result.version) { return "ours" }
+    if ($response -and "$($response.error.message)" -match "Unauthorized") { return "other-secret" }
+    return "not-aria2"
+}
+
 # ---------------------------------------------------------------------------
 # Step 1 helpers - the aria2 binary
 # ---------------------------------------------------------------------------
@@ -295,7 +333,10 @@ function Start-Aria2Background {
     }
     for ($i = 0; $i -lt 20; $i++) {
         Start-Sleep -Milliseconds 700
-        if (Test-PortOpen $Port) { return $true }
+        if (-not (Test-PortOpen $Port)) { continue }
+        # The port answering is not enough - verify OUR aria2 is behind it,
+        # otherwise a port conflict gets reported as a successful start.
+        if ((Get-RpcState -RpcSecret $Secret) -eq "ours") { return $true }
     }
     return $false
 }
@@ -496,40 +537,53 @@ try {
     Remove-StaleStartupEntries
 
     if (Test-PortOpen $Port) {
-        Write-Ok "Port $Port is already in use - checking if it is our aria2..."
-        try {
-            $null = Invoke-Aria2Rpc -Method "aria2.getVersion" -RpcSecret $Secret
-            Write-Ok "Yes - an aria2 with our secret is already running, leaving it alone"
-        } catch {
-            Write-Warn "Port $Port is used by an aria2 that does not accept our secret (old install?)."
-            Write-Info "Restarting it with the new configuration..."
-            Stop-Aria2Process
-            if (Start-Aria2Background) {
-                Write-Ok "aria2 restarted on port $Port with the new config"
-            } else {
-                Write-Warn "aria2 did not open port $Port. Last log lines:"
-                if (Test-Path $logPath) {
-                    Get-Content $logPath -Tail 5 | ForEach-Object { Write-Host "           $_" -ForegroundColor DarkGray }
+        $state = Get-RpcState -RpcSecret $Secret
+        if ($state -eq "ours") {
+            Write-Ok "Port $Port already has our aria2 - leaving it running"
+        } elseif ($state -eq "other-secret") {
+            $owner = Get-PortOwner $Port
+            if ($owner -match "aria2c") {
+                Write-Warn "Another local aria2c (owner: $owner) holds port $Port with a different secret - replacing it."
+                Stop-Aria2Process
+                if (Start-Aria2Background) {
+                    Write-Ok "aria2 restarted on port $Port with the new config"
+                } else {
+                    Write-Warn "aria2 did not come up (port owner: $(Get-PortOwner $Port)). Last log lines:"
+                    if (Test-Path $logPath) {
+                        Get-Content $logPath -Tail 5 | ForEach-Object { Write-Host "           $_" -ForegroundColor DarkGray }
+                    }
                 }
+            } else {
+                Write-Warn "Port $Port is held by a DIFFERENT aria2 (owner: $owner) that does not accept our secret."
+                Write-Warn "Typical cause: Docker Desktop publishing this project's dev container (secret: change-me)."
+                Write-Warn "Fix: stop that container ('docker compose down'), or re-run setup with -Port 6801 and set"
+                Write-Warn "the extension RPC URL to http://localhost:6801/jsonrpc. Nothing on port $Port was changed."
             }
+        } else {
+            $owner = Get-PortOwner $Port
+            Write-Warn "Port $Port is used by something that is NOT aria2 (owner: $owner) - aria2c cannot start."
+            Write-Warn "Fix: stop/exit that program, or re-run setup with -Port 6801 and set the extension"
+            Write-Warn "RPC URL to http://localhost:6801/jsonrpc. Nothing on port $Port was changed."
         }
     } else {
         Write-Info "Starting aria2 in the background (hidden)..."
         if (Start-Aria2Background) {
             Write-Ok "aria2 is running on port $Port (no window - see $logPath)"
         } else {
-            Write-Warn "aria2 did not open port $Port. Last log lines:"
+            Write-Warn "aria2 did not start correctly (port owner: $(Get-PortOwner $Port)). Last log lines:"
             if (Test-Path $logPath) {
                 Get-Content $logPath -Tail 5 | ForEach-Object { Write-Host "           $_" -ForegroundColor DarkGray }
             }
         }
     }
-    try {
+    $rpcState = Get-RpcState -RpcSecret $Secret
+    if ($rpcState -eq "ours") {
         $rpc = Invoke-Aria2Rpc -Method "aria2.getVersion" -RpcSecret $Secret
         Write-Ok "RPC test ok - aria2 $($rpc.result.version)"
-    } catch {
-        Write-Warn "Could not verify the RPC endpoint: $($_.Exception.Message)"
-        Write-Warn "Try windows\aria2.bat -> 2 (stop aria2), then re-run windows\Setup.bat"
+    } elseif ($rpcState -eq "other-secret") {
+        Write-Warn "RPC check: an aria2 is answering on port $Port, but with a different secret (see above)."
+    } else {
+        Write-Warn "RPC check: port $Port is not answering as our aria2 (see above)."
     }
 
     # -- Step 4: build the extension -------------------------------------------

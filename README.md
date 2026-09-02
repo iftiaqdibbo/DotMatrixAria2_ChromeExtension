@@ -429,6 +429,17 @@ MIT
 - Quick check: `dir "%USERPROFILE%\aria2"` should list `aria2c.exe`, `aria2.conf`,
   `aria2.session` and `start-aria2-hidden.vbs`
 
+### Port 6800 already in use / status says "not an aria2 server"
+- Something else on your PC is listening on port 6800, so aria2c cannot start
+  (it exits with "Failed to bind a socket"). The status screen
+  (`windows\aria2.bat` → 4) names the owning process
+- Common cause on dev machines: **Docker Desktop** publishing this project's
+  dev container, which runs its own aria2 on 6800 with secret `change-me`
+- Either stop that container (`docker compose down`) or give the Windows aria2
+  a different port:
+  `powershell -ExecutionPolicy Bypass -File windows\setup.ps1 -Port 6801`
+  and set the extension's RPC URL to `http://localhost:6801/jsonrpc`
+
 ### Badge not updating
 - Badge shows the active download count and updates when the popup or full dashboard is open
 - Close and reopen the popup to trigger a refresh if the count seems stale

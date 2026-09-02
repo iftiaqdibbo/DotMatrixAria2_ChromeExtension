@@ -72,6 +72,44 @@ function Invoke-Aria2Rpc {
         -ContentType "application/json" -Body $json -TimeoutSec 5
 }
 
+function Get-PortOwner {
+    # Best-effort name of the process listening on a local port.
+    param([int]$PortNumber)
+    try {
+        $conns = @(Get-NetTCPConnection -LocalPort $PortNumber -State Listen -ErrorAction SilentlyContinue)
+        foreach ($c in $conns) {
+            $p = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
+            if ($p) { return "$($p.ProcessName) (pid $($p.Id))" }
+        }
+    } catch { }
+    try {
+        $lines = @(netstat -ano | Select-String ":$PortNumber\s" | Select-String "LISTENING")
+        if ($lines.Count -gt 0) {
+            $ownerPid = ($lines[0].ToString().Trim() -split "\s+")[-1]
+            $p = Get-Process -Id $ownerPid -ErrorAction SilentlyContinue
+            if ($p) { return "$($p.ProcessName) (pid $($p.Id))" }
+            return "pid $ownerPid"
+        }
+    } catch { }
+    return "unknown process"
+}
+
+function Get-RpcState {
+    # Classifies whatever answers the RPC port:
+    #   "ours"         - an aria2 accepting our secret is running
+    #   "other-secret" - an aria2 is listening, but rejects our token
+    #   "not-aria2"    - the port answers, but it is not an aria2 RPC server
+    param([string]$RpcSecret)
+    try {
+        $response = Invoke-Aria2Rpc -Method "aria2.getVersion" -RpcSecret $RpcSecret
+    } catch {
+        return "not-aria2"
+    }
+    if ($response -and $response.result -and $response.result.version) { return "ours" }
+    if ($response -and "$($response.error.message)" -match "Unauthorized") { return "other-secret" }
+    return "not-aria2"
+}
+
 # Effective settings (conf wins over defaults)
 $Port = 6800
 $confPort = Get-ConfValue "rpc-listen-port"
@@ -130,10 +168,12 @@ function Start-Aria2 {
         Start-Sleep -Milliseconds 700
         if (Test-PortOpen $Port) { break }
     }
-    if (Test-PortOpen $Port) {
+    $state = "not-aria2"
+    if (Test-PortOpen $Port) { $state = Get-RpcState -RpcSecret $Secret }
+    if ($state -eq "ours") {
         Write-Ok "aria2 started in the background - RPC on http://localhost:$Port/jsonrpc"
     } else {
-        Write-Fail "aria2 did not open port $Port - check $logPath"
+        Write-Fail "aria2 did not start correctly on port $Port (state: $state, port owner: $(Get-PortOwner $Port))"
         if (Test-Path $logPath) {
             Get-Content $logPath -Tail 5 | ForEach-Object { Write-Host "         $_" -ForegroundColor DarkGray }
         }
@@ -183,17 +223,37 @@ function Show-Status {
     Write-Host "  port $Port :      $(if ($portOpen) { 'open' } else { 'closed' })"
 
     if ($portOpen) {
-        try {
+        $state = Get-RpcState -RpcSecret $Secret
+        if ($state -eq "ours") {
             $rpc = Invoke-Aria2Rpc -Method "aria2.getVersion" -RpcSecret $Secret
             Write-Host "  rpc:           connected - aria2 $($rpc.result.version)" -ForegroundColor Green
             Write-Host ""
             Write-Ok "The extension should be able to connect."
             $script:StatusOk = $true
-        } catch {
-            Write-Host "  rpc:           failed" -ForegroundColor Red
+        } else {
+            $owner = Get-PortOwner $Port
             Write-Host ""
-            Write-Warn "Port is open but RPC failed - the running aria2 probably uses a different secret."
-            Write-Warn "Stop it (aria2.bat -> 2), then start again, or re-run windows\Setup.bat."
+            if ($state -eq "other-secret") {
+                Write-Host "  rpc:           answered by a DIFFERENT aria2 (secret mismatch)" -ForegroundColor Red
+                Write-Host ""
+                Write-Warn "An aria2 is listening on port $Port, but it does not accept the secret in your conf."
+                Write-Warn "Port owner: $owner"
+                if ($owner -match "docker|wslrelay|vpnkit|com\.docker") {
+                    Write-Warn "This looks like Docker Desktop publishing the dev container's aria2 (secret: change-me)."
+                    Write-Warn "Fix: 'docker compose down' (or change its port mapping), or re-run windows\Setup.bat"
+                    Write-Warn "with -Port 6801 and set the extension RPC URL to http://localhost:6801/jsonrpc"
+                } else {
+                    Write-Warn "Fix: stop that aria2, or re-run windows\Setup.bat with -Port 6801 and update the"
+                    Write-Warn "extension RPC URL to http://localhost:6801/jsonrpc"
+                }
+            } else {
+                Write-Host "  rpc:           not an aria2 server" -ForegroundColor Red
+                Write-Host ""
+                Write-Warn "Something that is NOT aria2 is listening on port $Port (owner: $owner)."
+                Write-Warn "That is also why aria2c cannot run - the port is already taken."
+                Write-Warn "Fix: stop/exit that program, or re-run windows\Setup.bat with -Port 6801 and"
+                Write-Warn "set the extension RPC URL to http://localhost:6801/jsonrpc"
+            }
             $script:StatusOk = $false
         }
     } else {
@@ -247,9 +307,15 @@ function Show-Secret {
 function Invoke-RpcPing {
     try {
         $rpc = Invoke-Aria2Rpc -Method "aria2.getVersion" -RpcSecret $Secret
+        if ($rpc -and $null -ne ($rpc.PSObject.Properties["error"])) {
+            Write-Fail "RPC error: $($rpc.error.message)"
+            Write-Fail "The aria2 on port $Port is running with a different secret than your conf."
+            exit 1
+        }
         $rpc | ConvertTo-Json -Depth 6
     } catch {
         Write-Fail "RPC ping failed: $($_.Exception.Message)"
+        Write-Fail "Port owner: $(Get-PortOwner $Port)"
         exit 1
     }
 }

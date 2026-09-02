@@ -15,6 +15,7 @@
   // ---------------------------------------------------------------------------
   const MAX_RETRIES = 3;
   const RETRY_DELAY_MS = 150;
+  const alreadySent = new Set();
 
   async function sendMessageReliable(message, retries) {
     retries = retries || MAX_RETRIES;
@@ -158,8 +159,6 @@
       name: "Pixeldrain",
     },
   ];
-
-  const alreadySent = new Set();
 
   function extractUrlsFromText(text) {
     const found = [];

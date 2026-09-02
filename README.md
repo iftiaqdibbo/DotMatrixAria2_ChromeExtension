@@ -57,9 +57,15 @@ Day-to-day control: double-click **`windows\aria2.bat`** for a menu — start / 
 Notes:
 
 - Re-running `windows\Setup.bat` is safe: it keeps your existing config and secret.
+- If port 6800 is already taken by another program (e.g. this project's Docker
+  dev container), setup asks whether to use a free port such as 6801 instead —
+  accept it and the generated `aria2.conf` and the printed RPC URL will use the
+  new port.
 - aria2 only listens on `localhost:6800` (`rpc-listen-all=false`), so no Windows Firewall prompt appears.
 - The download queue survives reboots (`save-session`), and downloads go to your `Downloads` folder by default (`dir=` in `aria2.conf`).
-- To remove everything again: `windows\Uninstall.bat` (leaves your project folder untouched).
+- To remove everything again: `windows\Uninstall.bat` (leaves your project
+  folder untouched; also sweeps stale aria2 Startup shortcuts left by older
+  installs). Pass `-KeepFiles` to keep `%USERPROFILE%\aria2`.
 
 Advanced (from a terminal, in the repo root):
 
@@ -429,16 +435,27 @@ MIT
 - Quick check: `dir "%USERPROFILE%\aria2"` should list `aria2c.exe`, `aria2.conf`,
   `aria2.session` and `start-aria2-hidden.vbs`
 
-### Port 6800 already in use / status says "not an aria2 server"
+### Port 6800 already in use / status says "secret mismatch" or "not an aria2 server"
 - Something else on your PC is listening on port 6800, so aria2c cannot start
   (it exits with "Failed to bind a socket"). The status screen
-  (`windows\aria2.bat` → 4) names the owning process
-- Common cause on dev machines: **Docker Desktop** publishing this project's
-  dev container, which runs its own aria2 on 6800 with secret `change-me`
-- Either stop that container (`docker compose down`) or give the Windows aria2
-  a different port:
-  `powershell -ExecutionPolicy Bypass -File windows\setup.ps1 -Port 6801`
-  and set the extension's RPC URL to `http://localhost:6801/jsonrpc`
+  (`windows\aria2.bat` → 4) names the owning process and tells you whether it
+  is another aria2 with a different secret ("answered by a DIFFERENT aria2")
+  or not aria2 at all
+- Common cause on dev machines: **Docker Desktop** (WSL2 backend) publishing
+  this project's dev container, which runs its own aria2 on 6800 with secret
+  `change-me`. The port owner then shows up as `wslrelay` (or
+  `com.docker.backend` / `vpnkit` on some setups)
+- Pick one fix:
+  1. Stop the container — `docker compose down` (or close the dev container
+     window), then start aria2 again via `windows\aria2.bat`
+  2. Let setup move the Windows aria2 to a free port — re-run
+     `windows\Setup.bat` and answer `1` when it offers an alternative port,
+     or force one:
+     `powershell -ExecutionPolicy Bypass -File windows\setup.ps1 -Port 6801`.
+     Then set the extension's RPC URL to `http://localhost:6801/jsonrpc`
+  3. Keep the container's aria2 — leave it running and enter the secret
+     `change-me` in the extension options; downloads then land inside the
+     project folder under `.aria2/`
 
 ### Badge not updating
 - Badge shows the active download count and updates when the popup or full dashboard is open

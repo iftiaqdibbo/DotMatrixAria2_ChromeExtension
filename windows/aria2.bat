@@ -22,10 +22,12 @@ echo     5. Show recent log output
 echo     6. Edit aria2.conf
 echo     7. Show / copy the RPC secret
 echo     8. Re-run the full setup  (Setup.bat)
+echo     9. Re-run setup on a different RPC port
 echo     0. Exit
 echo.
-choice /C 123456780 /N /M "   Select an option: "
-if errorlevel 9 goto end
+choice /C 1234567890 /N /M "   Select an option: "
+if errorlevel 10 goto end
+if errorlevel 9 goto setupport
 if errorlevel 8 goto rerun
 if errorlevel 7 goto secret
 if errorlevel 6 goto conf
@@ -65,6 +67,30 @@ goto menu
 goto menu
 :secret
 "%PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0aria2.ps1" secret
+echo.
+pause
+goto menu
+:setupport
+cls
+echo.
+echo   Re-run setup on a different RPC port
+echo   -------------------------------------
+echo   Use this when the current port is blocked by another program, e.g. the
+echo   Docker dev container holding 6800. Your secret is kept. Afterwards set
+echo   the extension RPC URL to the new port.
+echo.
+set "NEWPORT="
+set /P NEWPORT="   Enter the new RPC port (e.g. 6801, empty to cancel): "
+if "%NEWPORT%"=="" goto menu
+echo %NEWPORT%| findstr /R /C:"^[0-9][0-9]*$" >nul
+if errorlevel 1 (
+    echo.
+    echo   [ERR] "%NEWPORT%" is not a port number - try something like 6801
+    echo.
+    pause
+    goto menu
+)
+"%PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup.ps1" -Port %NEWPORT%
 echo.
 pause
 goto menu

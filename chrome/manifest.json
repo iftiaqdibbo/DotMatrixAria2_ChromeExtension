@@ -9,7 +9,8 @@
     "contextMenus",
     "notifications",
     "downloads",
-    "cookies"
+    "cookies",
+    "webRequest"
   ],
   "host_permissions": [
     "http://localhost:6800/*",

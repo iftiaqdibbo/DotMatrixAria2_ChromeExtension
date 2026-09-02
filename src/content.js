@@ -9,6 +9,80 @@
 
   console.log("[Aria2 Content] Script injected into", window.location.href);
 
+  // ---------------------------------------------------------------------------
+  // Reliable messaging: retry sending messages to the background service worker
+  // in case the SW hasn't fully started yet (common on slower browsers / forks).
+  // ---------------------------------------------------------------------------
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 150;
+
+  async function sendMessageReliable(message, retries) {
+    retries = retries || MAX_RETRIES;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await chrome.runtime.sendMessage(message);
+        if (response && response.success !== undefined) return response;
+        // If we got a response at all, the SW is alive - return it even if
+        // success is false (it's a legitimate rejection, not a connection issue)
+        return response;
+      } catch (err) {
+        // Runtime connection error (SW not ready / not responding)
+        if (attempt < retries) {
+          console.log(
+            "[Aria2 Content] SW not available (attempt " + attempt + "/" + retries + "), retrying...",
+          );
+          await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        } else {
+          console.error("[Aria2 Content] Failed to send message to background after " + retries + " attempts:", err);
+          throw err;
+        }
+      }
+    }
+  }
+
+  async function isHijackEnabled() {
+    try {
+      const response = await sendMessageReliable({ type: "GET_HIJACK_STATUS" }, 2);
+      return response && response.enabled === true;
+    } catch (e) {
+      console.log("[Aria2 Content] Could not check hijack status:", e);
+      return false;
+    }
+  }
+
+  async function sendToAria2(url, siteName) {
+    if (!url || !url.startsWith("http")) return;
+    if (alreadySent.has(url)) {
+      console.log("[Aria2 Content] Already sent, skipping:", url);
+      return;
+    }
+    alreadySent.add(url);
+    if (alreadySent.size > 100) {
+      alreadySent.delete(alreadySent.keys().next().value);
+    }
+
+    console.log("[Aria2 Content] " + siteName + ": Sending to aria2:", url);
+
+    try {
+      const response = await sendMessageReliable(
+        {
+          type: "ADD_DOWNLOAD_INTERCEPT",
+          url: url,
+          referrer: window.location.href,
+          siteName: siteName,
+        },
+        2,
+      );
+      if (response && response.success) {
+        console.log("[Aria2 Content] Successfully sent to aria2:", url);
+      } else {
+        console.log("[Aria2 Content] Failed to send to aria2:", response?.error || "no response");
+      }
+    } catch (e) {
+      console.error("[Aria2 Content] Error sending download to aria2:", e);
+    }
+  }
+
   const siteInterceptors = [
     {
       pattern: /(https:\/\/store\d+\.gofile\.io\/download\/[^"'}\s]+)/g,
@@ -86,56 +160,6 @@
   ];
 
   const alreadySent = new Set();
-
-  let cachedHijackEnabled = null;
-
-  async function isHijackEnabled() {
-    if (cachedHijackEnabled !== null) {
-      return cachedHijackEnabled;
-    }
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ type: "GET_HIJACK_STATUS" }, (response) => {
-        const enabled = response && response.enabled;
-        cachedHijackEnabled = enabled;
-        resolve(enabled);
-      });
-    });
-  }
-
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && "aria2_hijack_downloads" in changes) {
-    cachedHijackEnabled = changes.aria2_hijack_downloads.newValue || false;
-  }
-});
-
-  async function sendToAria2(url, siteName) {
-    if (!url || !url.startsWith("http")) return;
-    if (alreadySent.has(url)) {
-      console.log("[Aria2 Content] Already sent, skipping:", url);
-      return;
-    }
-    alreadySent.add(url);
-    if (alreadySent.size > 100) {
-      alreadySent.delete(alreadySent.keys().next().value);
-    }
-
-    console.log("[Aria2 Content] " + siteName + ": Sending to aria2:", url);
-
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage(
-        {
-          type: "ADD_DOWNLOAD_INTERCEPT",
-          url: url,
-          referrer: window.location.href,
-          siteName: siteName,
-        },
-        (response) => {
-          console.log("[Aria2 Content] " + siteName + ": Response:", response);
-          resolve(response);
-        },
-      );
-    });
-  }
 
   function extractUrlsFromText(text) {
     const found = [];

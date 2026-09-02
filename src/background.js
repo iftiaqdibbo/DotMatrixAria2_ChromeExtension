@@ -13,8 +13,47 @@ const retriedWithSafeMode = new Set();
 const COMPLETED_TRACKING_MAX = 200;
 const SESSION_KEY = "aria2_pending_downloads";
 
+/** Has webRequest API (Chromium MV3) */
+function hasWebRequest() {
+  return typeof chrome.webRequest !== "undefined";
+}
+
+/** Chrome 122+ added downloads.onCreated - use it as an alternative */
+function hasDownloadsOnCreated() {
+  return typeof chrome.downloads.onCreated !== "undefined";
+}
+
 function isFirefox() {
   return typeof chrome.downloads.onDeterminingFilename !== "undefined";
+}
+
+// ---------------------------------------------------------------------------
+// Storage helpers - fall back from session to local when session is absent
+// (some Chromium forks don't fully implement chrome.storage.session)
+// ---------------------------------------------------------------------------
+async function setSessionStorage(key, value) {
+  try {
+    await chrome.storage.session.set({ [key]: value });
+    return true;
+  } catch {
+    try {
+      await chrome.storage.local.set({ ["_session_fb_" + key]: value });
+      return true;
+    } catch {}
+    return false;
+  }
+}
+
+async function getSessionStorage(key) {
+  try {
+    const data = await chrome.storage.session.get(key);
+    if (data[key] !== undefined) return data[key];
+  } catch {}
+  try {
+    const data = await chrome.storage.local.get("_session_fb_" + key);
+    if (data["_session_fb_" + key] !== undefined) return data["_session_fb_" + key];
+  } catch {}
+  return undefined;
 }
 
 async function trackDownloadItem(id, item) {
@@ -25,32 +64,26 @@ async function trackDownloadItem(id, item) {
     }
   }, DOWNLOAD_ITEM_TTL);
 
-  try {
-    const data = await chrome.storage.session.get(SESSION_KEY);
-    const items = data[SESSION_KEY] || {};
-    items[id] = {
-      url: item.url,
-      referrer: item.referrer,
-      filename: item.filename,
-      finalUrl: item.finalUrl,
-      _ts: Date.now(),
-    };
-    await chrome.storage.session.set({ [SESSION_KEY]: items });
-  } catch {}
+  const data = (await getSessionStorage(SESSION_KEY)) || {};
+  data[id] = {
+    url: item.url,
+    referrer: item.referrer,
+    filename: item.filename,
+    finalUrl: item.finalUrl,
+    _ts: Date.now(),
+  };
+  await setSessionStorage(SESSION_KEY, data);
 }
 
 async function recoverDownloadItem(id) {
   if (downloadItems[id]) return downloadItems[id];
-  try {
-    const data = await chrome.storage.session.get(SESSION_KEY);
-    const items = data[SESSION_KEY] || {};
-    const raw = items[id];
-    if (raw && Date.now() - raw._ts < DOWNLOAD_ITEM_TTL) {
-      const item = { id, url: raw.url, referrer: raw.referrer, filename: raw.filename, finalUrl: raw.finalUrl };
-      downloadItems[id] = item;
-      return item;
-    }
-  } catch {}
+  const data = (await getSessionStorage(SESSION_KEY)) || {};
+  const raw = data[id];
+  if (raw && Date.now() - raw._ts < DOWNLOAD_ITEM_TTL) {
+    const item = { id, url: raw.url, referrer: raw.referrer, filename: raw.filename, finalUrl: raw.finalUrl };
+    downloadItems[id] = item;
+    return item;
+  }
   return null;
 }
 
@@ -579,6 +612,114 @@ chrome.downloads.onChanged.addListener(async (downloadDelta) => {
     }
   });
 
+// ---------------------------------------------------------------------------
+// webRequest fallback: intercept Content-Disposition: attachment headers.
+// This catches downloads that would otherwise be missed by onChanged
+// (e.g. Vivaldi, Brave with custom download managers) or when the
+// Downloads API doesn't fire the filename transition event reliably.
+// ---------------------------------------------------------------------------
+if (hasWebRequest()) {
+  chrome.webRequest.onHeadersReceived.addListener(
+    async (details) => {
+      // Only intercept if hijack mode is enabled
+      const settings = await chrome.storage.local.get(["aria2_hijack_downloads"]);
+      if (!settings.aria2_hijack_downloads) return;
+
+      const url = details.url;
+
+      // Skip non-downloadable protocols and filtered URLs
+      if (await isUrlFilteredByExtension(url)) return;
+      try {
+        const urlObj = new URL(url);
+        const excludedProtocols = ["blob:", "data:", "file:", "chrome:", "chrome-extension:", "about:"];
+        if (excludedProtocols.includes(urlObj.protocol)) return;
+      } catch { return; }
+
+      // Deduplicate
+      if (interceptedUrls.has(url)) return;
+      interceptedUrls.add(url);
+      setTimeout(() => interceptedUrls.delete(url), 30000);
+
+      // Check if any response header triggers a download
+      const contentDisposition = (details.responseHeaders || [])
+        .find((h) => h.name.toLowerCase() === "content-disposition");
+      const contentType = (details.responseHeaders || [])
+        .find((h) => h.name.toLowerCase() === "content-type");
+
+      const dispValue = contentDisposition?.value || "";
+      const typeValue = contentType?.value || "";
+
+      // Only intercept when the server explicitly says "attachment"
+      // (skip "inline" which is meant for in-browser display)
+      const isAttachment =
+        dispValue.toLowerCase().includes("attachment") ||
+        dispValue.toLowerCase().includes("filename=");
+
+      // Also catch octet-stream which often triggers a download
+      const isBinaryStream =
+        typeValue.includes("application/octet-stream") ||
+        typeValue.includes("application/download") ||
+        typeValue.includes("application/force-download");
+
+      if (!isAttachment && !isBinaryStream) return;
+
+      console.log(
+        "[Aria2] webRequest: detected download trigger for",
+        url,
+        "Content-Disposition:",
+        dispValue,
+      );
+
+      // Extract filename from Content-Disposition if possible
+      let filename = "";
+      const fnMatch = dispValue.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      if (fnMatch) {
+        filename = fnMatch[1].replace(/['"]/g, "").trim();
+      }
+
+      const referrer = details.originUrl || details.documentUrl || details.initiator || "";
+      const cookieStoreId = details.cookieStoreId || details.tabId;
+      const cookies = await getCookiesForUrls([referrer, url], cookieStoreId);
+      const extraOptions = await getSafeModeOptions(url);
+
+      try {
+        await addUriToAria2(url, referrer, cookies, filename, null, extraOptions);
+        console.log("[Aria2] webRequest: download sent to aria2:", url);
+      } catch (err) {
+        console.error("[Aria2] webRequest: failed to send to aria2:", err);
+      }
+    },
+    { urls: ["<all_urls>"] },
+    ["responseHeaders"],
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Chrome 122+ download capture via onCreated (alternative to onChanged)
+// Chromium added chrome.downloads.onCreated starting in Chrome 122.
+// This provides a more reliable capture path for Chromium forks because
+// it fires immediately when a download is initiated, before the filename
+// transition that onChanged depends on.
+// ---------------------------------------------------------------------------
+if (hasDownloadsOnCreated() && !isFirefox()) {
+  chrome.downloads.onCreated.addListener(async (downloadItem) => {
+    await handleDownload(downloadItem, async (item, referrer, cookies) => {
+      await removeDownloadItemCompletely(item);
+      try {
+        await captureDownloadItem(item, referrer, cookies);
+        showNotification(
+          "aria2",
+          "Download captured: " + basename(item.filename),
+        );
+      } catch (err) {
+        console.error("Failed to capture download:", err);
+        showNotification("aria2 Error", err.message);
+      }
+    });
+  });
+}
+
+// Firefox uses its own onCreated (via the onDeterminingFilename path)
 if (isFirefox()) {
   chrome.downloads.onCreated.addListener(async (downloadItem) => {
     await handleDownload(downloadItem, async (item, referrer, cookies) => {

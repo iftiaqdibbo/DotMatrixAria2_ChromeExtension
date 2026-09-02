@@ -16,10 +16,17 @@
 #
 #  Optional parameters:
 #    -Secret <token>   use this RPC secret instead of the stored/generated one
-#    -Port <number>    RPC port (default 6800, ignored if the conf file has one)
+#    -Port <number>    RPC port (default 6800; passing it explicitly overrides
+#                      the port stored in an existing conf file)
 #    -SkipBuild        do not touch Node/npm or the extension build
 #    -Rebuild          force npm install + rebuild of dist\chrome
 #    -NoBrowser        do not open Chrome / Explorer / clipboard at the end
+#
+#  If the chosen RPC port is already taken by something that is not your own
+#  aria2 (e.g. Docker Desktop publishing this project's dev container on 6800),
+#  setup interactively offers to move to a free port (6801, 6802, ...). The
+#  generated aria2.conf is written with whichever port you end up on, and the
+#  final screen prints the matching RPC URL for the extension options.
 #
 #  Safe to re-run: your existing conf and secret are kept unless -Secret is
 #  passed, and existing builds are reused unless -Rebuild is passed.
@@ -108,6 +115,56 @@ function Invoke-Aria2Rpc {
         -ContentType "application/json" -Body $json -TimeoutSec 5
 }
 
+function Invoke-Aria2RpcRaw {
+    # Like Invoke-Aria2Rpc, but never throws: returns HTTP status + raw body so
+    # the caller can tell WHY a call failed. This matters because aria2 answers
+    # a wrong/missing token with HTTP 400 + JSON-RPC error
+    # {"error":{"code":1,"message":"Unauthorized"}}, and Invoke-RestMethod
+    # throws on any non-2xx status - hiding that body. Without recovering it,
+    # a real aria2 with a different secret gets misclassified as "not aria2".
+    param([string]$Method, [string]$RpcSecret)
+    $params = @()
+    if ($RpcSecret) { $params = @("token:$RpcSecret") }
+    $payload = @{
+        jsonrpc = "2.0"
+        id      = "aria2-dashboard-setup"
+        method  = $Method
+        params  = $params
+    }
+    $json = ConvertTo-Json -InputObject $payload -Depth 4 -Compress
+    $result = [pscustomobject]@{ StatusCode = 0; Body = ""; Parsed = $null; ErrorText = "" }
+    try {
+        $result.Parsed = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/jsonrpc" -Method Post `
+            -ContentType "application/json" -Body $json -TimeoutSec 5
+        $result.StatusCode = 200
+        return $result
+    } catch {
+        $result.ErrorText = "$($_.Exception.Message)"
+        $resp = $null
+        if ($_.Exception.PSObject.Properties["Response"]) { $resp = $_.Exception.Response }
+        if ($null -eq $resp) { return $result }
+        try {
+            if ($resp.GetType().Name -eq "HttpResponseMessage") {
+                # PowerShell 7+: status on the message, body via ErrorDetails
+                $result.StatusCode = [int]$resp.StatusCode
+                if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                    $result.Body = "$($_.ErrorDetails.Message)"
+                }
+            } else {
+                # Windows PowerShell 5.1: HttpWebResponse with a readable body stream
+                $result.StatusCode = [int]$resp.StatusCode
+                $stream = $resp.GetResponseStream()
+                if ($stream) {
+                    $reader = New-Object System.IO.StreamReader($stream)
+                    $result.Body = $reader.ReadToEnd()
+                    $reader.Dispose()
+                }
+            }
+        } catch { }
+        return $result
+    }
+}
+
 function Get-ConfValue {
     param([string]$Key)
     if (-not (Test-Path $confPath)) { return $null }
@@ -145,13 +202,13 @@ function Get-RpcState {
     #   "other-secret" - an aria2 is listening, but rejects our token
     #   "not-aria2"    - the port answers, but it is not an aria2 RPC server
     param([string]$RpcSecret)
-    try {
-        $response = Invoke-Aria2Rpc -Method "aria2.getVersion" -RpcSecret $RpcSecret
-    } catch {
-        return "not-aria2"
-    }
-    if ($response -and $response.result -and $response.result.version) { return "ours" }
-    if ($response -and "$($response.error.message)" -match "Unauthorized") { return "other-secret" }
+    $r = Invoke-Aria2RpcRaw -Method "aria2.getVersion" -RpcSecret $RpcSecret
+    if ($r.Parsed -and $r.Parsed.result -and $r.Parsed.result.version) { return "ours" }
+    # aria2 rejects a wrong/missing token with a JSON-RPC "Unauthorized" error
+    # (current aria2 sends that as HTTP 400, which makes Invoke-RestMethod
+    # throw - Invoke-Aria2RpcRaw recovers the body so we can still see it).
+    if ($r.Parsed -and "$($r.Parsed.error.message)" -match "Unauthorized") { return "other-secret" }
+    if ($r.StatusCode -ge 400 -and $r.Body -match "Unauthorized") { return "other-secret" }
     return "not-aria2"
 }
 
@@ -319,6 +376,68 @@ function Remove-StaleStartupEntries {
     } catch { }
 }
 
+function Find-FreeRpcPort {
+    # First port >= StartPort with nothing listening on it.
+    param([int]$StartPort)
+    $p = $StartPort
+    while ($p -lt ($StartPort + 100)) {
+        if (-not (Test-PortOpen $p)) { return $p }
+        $p++
+    }
+    return -1
+}
+
+function Resolve-PortConflict {
+    # Called when something that is not our aria2 already listens on $Port.
+    # Interactive console: offer to move this install to a free port (the conf
+    # written in step 2 is rewritten accordingly). No console / declined:
+    # keep the old port and leave everything untouched.
+    param([string]$State, [string]$Owner)
+    $suggested = Find-FreeRpcPort -StartPort ($Port + 1)
+    if ($suggested -lt 0) {
+        Write-Warn "No free port found near $Port - cannot offer an alternative."
+        return $false
+    }
+    Write-Host ""
+    Write-Host "    Port $Port is taken (owner: $owner)." -ForegroundColor White
+    if ($State -eq "other-secret") {
+        if ($Owner -match "docker|wslrelay|vpnkit|com\.docker") {
+            Write-Warn "That looks like Docker Desktop publishing this project's dev container,"
+            Write-Warn "which runs its own aria2 on $Port (secret: change-me)."
+        } else {
+            Write-Warn "A DIFFERENT aria2 answers on $Port and rejects the secret in your conf."
+        }
+    }
+    Write-Host ""
+    Write-Host "    1) Use port $suggested instead (recommended - the extension stays on localhost)" -ForegroundColor White
+    Write-Host "       You will set the extension RPC URL to http://localhost:${suggested}/jsonrpc"
+    Write-Host "    2) Keep port $Port (aria2 stays stopped until you free it; e.g. for the dev" -ForegroundColor White
+    Write-Host "       container above: 'docker compose down', then windows\aria2.bat -> start)"
+    $answer = ""
+    try { $answer = Read-Host "    Choose [1/2] (Enter = 1)" } catch { $answer = "" }
+    if (-not $answer) { $answer = "1" }   # non-interactive runs take the recommendation
+    if ("$answer".Trim() -eq "2") {
+        Write-Ok "Keeping port $Port - nothing was changed on it."
+        return $false
+    }
+    $script:Port = $suggested
+    Write-Aria2Conf -RpcSecret $Secret
+    Write-Ok "Switched to port ${suggested}: rewrote $confPath (rpc-listen-port=$suggested, secret kept)"
+    return $true
+}
+
+function Start-Aria2AndReport {
+    Write-Info "Starting aria2 in the background (hidden)..."
+    if (Start-Aria2Background) {
+        Write-Ok "aria2 is running on port $Port (no window - see $logPath)"
+    } else {
+        Write-Warn "aria2 did not start correctly (port owner: $(Get-PortOwner $Port)). Last log lines:"
+        if (Test-Path $logPath) {
+            Get-Content $logPath -Tail 5 | ForEach-Object { Write-Host "           $_" -ForegroundColor DarkGray }
+        }
+    }
+}
+
 function Start-Aria2Background {
     Write-LauncherScript
     try {
@@ -450,22 +569,53 @@ function Build-Extension {
 # Step 5 helpers - Chrome hand-off
 # ---------------------------------------------------------------------------
 function Find-Chrome {
-    foreach ($regPath in @(
-        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
-        "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"
-    )) {
-        try {
-            $exe = (Get-ItemProperty -Path $regPath -ErrorAction Stop).'(default)'
-            if ($exe -and (Test-Path $exe)) { return $exe }
-        } catch { }
+    # First try Chrome, then other Chromium-based browsers
+    $browsers = @(
+        @{ name = "chrome";   reg = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
+                                      "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe");
+                         paths = @("Google\Chrome\Application\chrome.exe") },
+        @{ name = "vivaldi";  reg = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\vivaldi.exe",
+                                      "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\vivaldi.exe");
+                         paths = @("Vivaldi\Application\vivaldi.exe") },
+        @{ name = "brave";    reg = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\brave.exe",
+                                      "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\brave.exe");
+                         paths = @("BraveSoftware\Brave-Browser\Application\brave.exe") },
+        @{ name = "msedge";   reg = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe",
+                                      "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe");
+                         paths = @("Microsoft\Edge\Application\msedge.exe") },
+        @{ name = "opera";    reg = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\opera.exe",
+                                      "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\opera.exe");
+                         paths = @("Opera Software\Opera\launcher.exe") }
+    )
+    # Also search common locations for any chromium-based browser
+    $extraPaths = @($env:LOCALAPPDATA, ${env:ProgramFiles}, ${env:ProgramFiles(x86)})
+    foreach ($b in $browsers) {
+        # 1. Registry
+        foreach ($regPath in $b.reg) {
+            try {
+                $exe = (Get-ItemProperty -Path $regPath -ErrorAction Stop).'(default)'
+                if ($exe -and (Test-Path $exe)) {
+                    Write-Debug "Found $($b.name) via registry: $exe"
+                    return $exe
+                }
+            } catch { }
+        }
+        # 2. Standard install paths
+        foreach ($base in $extraPaths) {
+            if (-not $base) { continue }
+            foreach ($subPath in $b.paths) {
+                $exe = Join-Path $base $subPath
+                if (Test-Path $exe) {
+                    Write-Debug "Found $($b.name) via path: $exe"
+                    return $exe
+                }
+            }
+        }
     }
-    foreach ($base in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA)) {
-        if (-not $base) { continue }
-        $exe = Join-Path $base "Google\Chrome\Application\chrome.exe"
-        if (Test-Path $exe) { return $exe }
-    }
+    Write-Debug "No Chromium-based browser found"
     return $null
 }
+
 
 # =============================================================================
 # Main
@@ -508,13 +658,22 @@ try {
     Write-Step "2/5" "aria2.conf + RPC secret"
     $confSecret = Get-ConfValue "rpc-secret"
     $confPort   = Get-ConfValue "rpc-listen-port"
-    if ($confPort) { $Port = [int]$confPort }
+    # An explicitly passed -Port wins over the one stored in the conf file -
+    # otherwise the documented "re-run setup with -Port 6801" fix for a blocked
+    # port would silently keep using the old port from the existing conf.
+    if ($confPort -and -not $PSBoundParameters.ContainsKey("Port")) { $Port = [int]$confPort }
+    $portSwitch = $confPort -and ([int]$confPort -ne $Port)
+
     if ($Secret -ne "") {
         Write-Aria2Conf -RpcSecret $Secret
         Write-Ok "Wrote $confPath (using the -Secret you provided)"
-    } elseif ($confSecret) {
+    } elseif ($confSecret -and -not $portSwitch) {
         $Secret = $confSecret
         Write-Ok "Keeping your existing $confPath and RPC secret"
+    } elseif ($confSecret) {
+        Write-Aria2Conf -RpcSecret $confSecret
+        $Secret = $confSecret
+        Write-Ok "Updated ${confPath}: rpc-listen-port $confPort -> $Port (existing secret kept)"
     } else {
         $Secret = [guid]::NewGuid().ToString("N")
         Write-Aria2Conf -RpcSecret $Secret
@@ -554,27 +713,15 @@ try {
                     }
                 }
             } else {
-                Write-Warn "Port $Port is held by a DIFFERENT aria2 (owner: $owner) that does not accept our secret."
-                Write-Warn "Typical cause: Docker Desktop publishing this project's dev container (secret: change-me)."
-                Write-Warn "Fix: stop that container ('docker compose down'), or re-run setup with -Port 6801 and set"
-                Write-Warn "the extension RPC URL to http://localhost:6801/jsonrpc. Nothing on port $Port was changed."
+                if (Resolve-PortConflict -State $state -Owner $owner) { Start-Aria2AndReport }
             }
         } else {
             $owner = Get-PortOwner $Port
             Write-Warn "Port $Port is used by something that is NOT aria2 (owner: $owner) - aria2c cannot start."
-            Write-Warn "Fix: stop/exit that program, or re-run setup with -Port 6801 and set the extension"
-            Write-Warn "RPC URL to http://localhost:6801/jsonrpc. Nothing on port $Port was changed."
+            if (Resolve-PortConflict -State $state -Owner $owner) { Start-Aria2AndReport }
         }
     } else {
-        Write-Info "Starting aria2 in the background (hidden)..."
-        if (Start-Aria2Background) {
-            Write-Ok "aria2 is running on port $Port (no window - see $logPath)"
-        } else {
-            Write-Warn "aria2 did not start correctly (port owner: $(Get-PortOwner $Port)). Last log lines:"
-            if (Test-Path $logPath) {
-                Get-Content $logPath -Tail 5 | ForEach-Object { Write-Host "           $_" -ForegroundColor DarkGray }
-            }
-        }
+        Start-Aria2AndReport
     }
     $rpcState = Get-RpcState -RpcSecret $Secret
     if ($rpcState -eq "ours") {

@@ -72,6 +72,56 @@ function Invoke-Aria2Rpc {
         -ContentType "application/json" -Body $json -TimeoutSec 5
 }
 
+function Invoke-Aria2RpcRaw {
+    # Like Invoke-Aria2Rpc, but never throws: returns HTTP status + raw body so
+    # the caller can tell WHY a call failed. This matters because aria2 answers
+    # a wrong/missing token with HTTP 400 + JSON-RPC error
+    # {"error":{"code":1,"message":"Unauthorized"}}, and Invoke-RestMethod
+    # throws on any non-2xx status - hiding that body. Without recovering it,
+    # a real aria2 with a different secret gets misclassified as "not aria2".
+    param([string]$Method, [string]$RpcSecret)
+    $params = @()
+    if ($RpcSecret) { $params = @("token:$RpcSecret") }
+    $payload = @{
+        jsonrpc = "2.0"
+        id      = "aria2-dashboard-manager"
+        method  = $Method
+        params  = $params
+    }
+    $json = ConvertTo-Json -InputObject $payload -Depth 4 -Compress
+    $result = [pscustomobject]@{ StatusCode = 0; Body = ""; Parsed = $null; ErrorText = "" }
+    try {
+        $result.Parsed = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/jsonrpc" -Method Post `
+            -ContentType "application/json" -Body $json -TimeoutSec 5
+        $result.StatusCode = 200
+        return $result
+    } catch {
+        $result.ErrorText = "$($_.Exception.Message)"
+        $resp = $null
+        if ($_.Exception.PSObject.Properties["Response"]) { $resp = $_.Exception.Response }
+        if ($null -eq $resp) { return $result }
+        try {
+            if ($resp.GetType().Name -eq "HttpResponseMessage") {
+                # PowerShell 7+: status on the message, body via ErrorDetails
+                $result.StatusCode = [int]$resp.StatusCode
+                if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+                    $result.Body = "$($_.ErrorDetails.Message)"
+                }
+            } else {
+                # Windows PowerShell 5.1: HttpWebResponse with a readable body stream
+                $result.StatusCode = [int]$resp.StatusCode
+                $stream = $resp.GetResponseStream()
+                if ($stream) {
+                    $reader = New-Object System.IO.StreamReader($stream)
+                    $result.Body = $reader.ReadToEnd()
+                    $reader.Dispose()
+                }
+            }
+        } catch { }
+        return $result
+    }
+}
+
 function Get-PortOwner {
     # Best-effort name of the process listening on a local port.
     param([int]$PortNumber)
@@ -100,13 +150,13 @@ function Get-RpcState {
     #   "other-secret" - an aria2 is listening, but rejects our token
     #   "not-aria2"    - the port answers, but it is not an aria2 RPC server
     param([string]$RpcSecret)
-    try {
-        $response = Invoke-Aria2Rpc -Method "aria2.getVersion" -RpcSecret $RpcSecret
-    } catch {
-        return "not-aria2"
-    }
-    if ($response -and $response.result -and $response.result.version) { return "ours" }
-    if ($response -and "$($response.error.message)" -match "Unauthorized") { return "other-secret" }
+    $r = Invoke-Aria2RpcRaw -Method "aria2.getVersion" -RpcSecret $RpcSecret
+    if ($r.Parsed -and $r.Parsed.result -and $r.Parsed.result.version) { return "ours" }
+    # aria2 rejects a wrong/missing token with a JSON-RPC "Unauthorized" error
+    # (current aria2 sends that as HTTP 400, which makes Invoke-RestMethod
+    # throw - Invoke-Aria2RpcRaw recovers the body so we can still see it).
+    if ($r.Parsed -and "$($r.Parsed.error.message)" -match "Unauthorized") { return "other-secret" }
+    if ($r.StatusCode -ge 400 -and $r.Body -match "Unauthorized") { return "other-secret" }
     return "not-aria2"
 }
 
@@ -140,8 +190,27 @@ shell.Run cmd, 0, False
 
 function Start-Aria2 {
     if (Test-PortOpen $Port) {
-        Write-Ok "aria2 RPC is already listening on port $Port - nothing to do"
-        return
+        $state = Get-RpcState -RpcSecret $Secret
+        if ($state -eq "ours") {
+            Write-Ok "aria2 RPC is already listening on port $Port - nothing to do"
+            return
+        }
+        $owner = Get-PortOwner $Port
+        Write-Fail "Cannot start: port $Port is already taken (owner: $owner)."
+        if ($state -eq "other-secret") {
+            Write-Fail "A DIFFERENT aria2 answers on that port and rejects the secret from your conf."
+        }
+        if ($owner -match "docker|wslrelay|vpnkit|com\.docker") {
+            Write-Fail "That looks like Docker Desktop publishing this project's dev container"
+            Write-Fail "(it runs its own aria2 on $Port with secret: change-me)."
+            Write-Fail "Free the port with 'docker compose down', or move the Windows aria2:"
+            Write-Fail "    windows\Setup.bat -Port 6801"
+            Write-Fail "and set the extension RPC URL to http://localhost:6801/jsonrpc"
+        } else {
+            Write-Fail "Fix: stop/exit that program, or re-run windows\Setup.bat with -Port 6801"
+            Write-Fail "and set the extension RPC URL to http://localhost:6801/jsonrpc"
+        }
+        exit 1
     }
     if (-not (Test-Path $script:ExeInUse)) {
         Write-Fail "aria2c.exe not found (looked in $aria2Dir and on PATH)"
@@ -220,7 +289,7 @@ function Show-Status {
     $procs = @(Get-Process -Name "aria2c" -ErrorAction SilentlyContinue)
     Write-Host "  process:       $(if ($procs.Count -gt 0) { 'running (pid ' + $procs[0].Id + ')' } else { 'not running' })"
     $portOpen = Test-PortOpen $Port
-    Write-Host "  port $Port :      $(if ($portOpen) { 'open' } else { 'closed' })"
+    Write-Host ("  port ${Port}:".PadRight(17) + $(if ($portOpen) { 'open' } else { 'closed' }))
 
     if ($portOpen) {
         $state = Get-RpcState -RpcSecret $Secret
@@ -250,6 +319,11 @@ function Show-Status {
                 Write-Host "  rpc:           not an aria2 server" -ForegroundColor Red
                 Write-Host ""
                 Write-Warn "Something that is NOT aria2 is listening on port $Port (owner: $owner)."
+                if ($owner -match "docker|wslrelay|vpnkit|com\.docker") {
+                    Write-Warn "That owner is how Docker Desktop (WSL2) relays a container port to localhost."
+                    Write-Warn "If this project's dev container is running it owns port $Port - stop it with"
+                    Write-Warn "'docker compose down' (or close the dev container window) to free the port."
+                }
                 Write-Warn "That is also why aria2c cannot run - the port is already taken."
                 Write-Warn "Fix: stop/exit that program, or re-run windows\Setup.bat with -Port 6801 and"
                 Write-Warn "set the extension RPC URL to http://localhost:6801/jsonrpc"
@@ -305,19 +379,27 @@ function Show-Secret {
 }
 
 function Invoke-RpcPing {
-    try {
-        $rpc = Invoke-Aria2Rpc -Method "aria2.getVersion" -RpcSecret $Secret
-        if ($rpc -and $null -ne ($rpc.PSObject.Properties["error"])) {
-            Write-Fail "RPC error: $($rpc.error.message)"
-            Write-Fail "The aria2 on port $Port is running with a different secret than your conf."
-            exit 1
+    $r = Invoke-Aria2RpcRaw -Method "aria2.getVersion" -RpcSecret $Secret
+    if ($r.Parsed -and $r.Parsed.result -and $r.Parsed.result.version) {
+        $r.Parsed | ConvertTo-Json -Depth 6
+        return
+    }
+    $owner = Get-PortOwner $Port
+    $unauthorized = ($r.Parsed -and "$($r.Parsed.error.message)" -match "Unauthorized") -or
+                    ($r.StatusCode -ge 400 -and $r.Body -match "Unauthorized")
+    if ($unauthorized) {
+        Write-Fail "RPC error: Unauthorized - the aria2 on port $Port uses a DIFFERENT secret than your conf."
+        if ($owner -match "docker|wslrelay|vpnkit|com\.docker") {
+            Write-Fail "Port owner '$owner' looks like Docker/WSL relaying the dev container's aria2 (secret: change-me)."
+            Write-Fail "Either stop the container ('docker compose down') or put that secret into your conf."
+        } else {
+            Write-Fail "Port owner: $owner"
         }
-        $rpc | ConvertTo-Json -Depth 6
-    } catch {
-        Write-Fail "RPC ping failed: $($_.Exception.Message)"
-        Write-Fail "Port owner: $(Get-PortOwner $Port)"
         exit 1
     }
+    Write-Fail "RPC ping failed: $($r.ErrorText)"
+    Write-Fail "Port owner: $owner"
+    exit 1
 }
 
 function Show-Help {

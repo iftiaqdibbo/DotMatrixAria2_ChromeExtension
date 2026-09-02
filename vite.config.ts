@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => {
       viteStaticCopy({
         targets: [
           {
-            src: isFirefox ? "firefox/manifest.json" : "manifest.chrome.json",
+            src: isFirefox ? "firefox/manifest.json" : "chrome/manifest.json",
             dest: ".",
             rename: "manifest.json",
           },

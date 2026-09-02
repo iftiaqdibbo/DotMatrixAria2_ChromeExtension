@@ -1,5 +1,14 @@
 dist/
 node_modules/
 .DS_Store
-old-vanilla-js-version.tar.gz
-manifest.json
+.aria2/
+.env
+
+# Docker dev environment - kept local only, not part of the repository
+docker/
+docker-compose.yml
+.devcontainer/
+.dockerignore
+.env.example
+scripts/dev.sh
+

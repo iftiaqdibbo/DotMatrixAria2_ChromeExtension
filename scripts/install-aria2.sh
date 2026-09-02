@@ -128,7 +128,7 @@ if [[ "$(uname -s)" == "Linux" || "$(uname -s)" == "Darwin" ]]; then
   install_linux
 else
   err "This script does not support $(uname -s)."
-  echo "Please install aria2 manually or run install-aria2.ps1 on Windows."
+  echo "Please install aria2 manually or run scripts/install-aria2.ps1 on Windows."
   exit 1
 fi
 

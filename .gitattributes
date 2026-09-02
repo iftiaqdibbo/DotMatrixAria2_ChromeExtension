@@ -1,0 +1,14 @@
+# Keep shell scripts LF so they run inside the Linux dev container.
+*.sh text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.svg text
+*.png binary
+
+# Windows scripts need CRLF for cmd.exe / PowerShell
+*.bat text eol=crlf
+*.ps1 text eol=crlf

@@ -2,13 +2,13 @@
 
 A browser extension for managing aria2 downloads with a sleek dot-matrix aesthetic and real-time updates. Supports both Chrome and Firefox.
 
-![Aria2 Dashboard Popup](sc1.png)
+![Aria2 Dashboard Popup](docs/sc1.png)
 
-![Aria2 Dashboard Options](sc2.png)
+![Aria2 Dashboard Options](docs/sc2.png)
 
-![Aria2 Dashboard Options2](sc3.png)
+![Aria2 Dashboard Options2](docs/sc3.png)
 
-![Aria2 Dashboard Full](sc4.png)
+![Aria2 Dashboard Full](docs/sc4.png)
 
 ## Features
 
@@ -32,7 +32,46 @@ A browser extension for managing aria2 downloads with a sleek dot-matrix aesthet
 
 ## Installation
 
+### Windows 11 — one-click setup (recommended)
+
+On Windows you don't need to install anything by hand. In the repo folder:
+
+1. Double-click **`windows\Setup.bat`** (runs as your normal user — no admin needed)
+
+The script takes care of everything:
+
+1. Downloads the official aria2 Windows build into `%USERPROFILE%\aria2` and adds it to your PATH
+2. Writes an `aria2.conf` with RPC enabled on port 6800 and a freshly generated secret
+3. Registers aria2 to auto-start hidden in the background on login (Startup folder) and starts it right away
+4. Installs Node.js if it's missing (via winget, or a portable copy as fallback), runs `npm install` and builds the Chrome extension into `dist\chrome`
+5. Opens `chrome://extensions` and copies the extension folder path to your clipboard
+
+Then finish the one-time extension load (unpacked extensions persist across Chrome restarts):
+
+1. In `chrome://extensions`, turn on **Developer mode**
+2. Click **Load unpacked** and select the `dist\chrome` folder (the path is already on your clipboard)
+3. Open the extension options and paste the **Secret token** printed by the setup (the RPC URL is already the default `http://localhost:6800/jsonrpc`)
+
+Day-to-day control: double-click **`windows\aria2.bat`** for a menu — start / stop / restart / status + connection test / log / edit conf / show secret. It can also be called from a terminal: `windows\aria2.bat start|stop|restart|status|log|conf|secret|rpc`.
+
+Notes:
+
+- Re-running `windows\Setup.bat` is safe: it keeps your existing config and secret.
+- aria2 only listens on `localhost:6800` (`rpc-listen-all=false`), so no Windows Firewall prompt appears.
+- The download queue survives reboots (`save-session`), and downloads go to your `Downloads` folder by default (`dir=` in `aria2.conf`).
+- To remove everything again: `windows\Uninstall.bat` (leaves your project folder untouched).
+
+Advanced (from a terminal, in the repo root):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File windows\setup.ps1 -Rebuild        # force npm install + rebuild
+powershell -ExecutionPolicy Bypass -File windows\setup.ps1 -Secret my-token
+powershell -ExecutionPolicy Bypass -File windows\setup.ps1 -SkipBuild      # aria2/service only, no Node
+powershell -ExecutionPolicy Bypass -File windows\uninstall.ps1             # remove the background service
+```
+
 ### Chrome
+
 
 1. Clone this repository
 2. Run `npm install`
@@ -69,17 +108,19 @@ Run the installer script — it detects your OS, installs aria2, and starts it w
 
 **Linux / macOS:**
 ```bash
-./install-aria2.sh
+./scripts/install-aria2.sh
 ```
 
-**Windows (PowerShell, run as Administrator):**
+**Windows 11:**
+Use `windows\Setup.bat` (see [Windows 11 — one-click setup](#windows-11--one-click-setup-recommended)) — it installs aria2, registers it as a background service *and* builds the extension. If you only want the bare aria2 installer, the legacy script still works:
+
 ```powershell
-.\install-aria2.ps1
+.\scripts\install-aria2.ps1
 ```
 
 You can pass a custom RPC secret as an argument:
 ```bash
-./install-aria2.sh my-secret-token
+./scripts/install-aria2.sh my-secret-token
 ```
 ```powershell
 .\install-aria2.ps1 my-secret-token
@@ -139,7 +180,7 @@ aria2c --enable-rpc --rpc-listen-all=false --rpc-listen-port=6800 --rpc-secret="
 - Extension default RPC URL: `http://localhost:6800/jsonrpc`
 - Put the same secret in extension options (`Secret Token`)
 
-To auto-start aria2 on login, add the command above (with `-D` for daemon mode) to your shell profile on Linux/macOS, or place a shortcut in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup` on Windows.
+To auto-start aria2 on login, add the command above (with `-D` for daemon mode) to your shell profile on Linux/macOS. On Windows, `windows\Setup.bat` registers this for you automatically (hidden, via the Startup folder).
 
 Optional persistent config (`aria2.conf`):
 ```ini
@@ -264,7 +305,7 @@ The content script scans fetch/XHR responses for download URLs from these hosts:
 
 Run the build script to install dependencies and package for both browsers:
 ```bash
-./build.sh
+./scripts/build.sh
 ```
 
 This runs `npm install` (if needed), builds with Vite for both Chrome and Firefox, then creates:
@@ -309,17 +350,27 @@ npm run typecheck      # TypeScript type checking
 │   ├── background.js          # Service worker / Background script
 │   ├── content.js             # Content script for site-specific URL interception
 │   └── constants.js           # Vanilla JS constants (imported by background)
-├── icons/                 # Extension icons
-├── firefox/               # Firefox-specific files
-│   ├── manifest.json      # Firefox manifest (with gecko settings)
-│   └── icons/             # Copy of extension icons
-├── manifest.chrome.json       # Chrome manifest source (copied by Vite to dist/)
+├── chrome/                    # Chrome-specific files
+│   └── manifest.json          # Chrome manifest source (copied by Vite to dist/)
+├── firefox/                   # Firefox-specific files
+│   ├── manifest.json          # Firefox manifest (with gecko settings)
+│   └── icons/                 # Copy of extension icons
+├── icons/                     # Extension icons
+├── scripts/                   # Helper scripts
+│   ├── build.sh               # npm install + build both browsers + zips
+│   ├── install-aria2.sh       # aria2 installer (Linux/macOS)
+│   └── install-aria2.ps1      # aria2 installer (Windows, legacy — aria2 only)
+├── windows/                   # Windows 11 one-click setup
+│   ├── Setup.bat              # double-click: full setup (aria2 + background service + build)
+│   ├── setup.ps1              # setup engine
+│   ├── aria2.bat              # double-click: start/stop/status menu
+│   ├── aria2.ps1              # manager engine (also: aria2.ps1 start|stop|status|...)
+│   ├── Uninstall.bat          # double-click: remove the background service
+│   └── uninstall.ps1          # uninstall engine
+├── docs/                      # README screenshots (sc1.png – sc4.png)
 ├── vite.config.ts             # Vite build configuration
 ├── tsconfig.json              # TypeScript configuration
 ├── package.json               # npm package definition
-├── build.sh                   # Build script for packaging
-├── install-aria2.sh           # aria2 installer (Linux/macOS)
-├── install-aria2.ps1          # aria2 installer (Windows)
 └── dist/                      # Build output (gitignored)
     ├── chrome/                # Chrome unpacked build
     ├── firefox/               # Firefox unpacked build
@@ -333,7 +384,7 @@ npm run typecheck      # TypeScript type checking
 |--------|--------|---------|
 | Background | Service worker (`background.service_worker`) | Background page (`background.scripts`) |
 | Download capture | `onChanged` + `onDeterminingFilename` | `onCreated` directly |
-| Manifest | `manifest.chrome.json` → `dist/chrome/manifest.json` | `firefox/manifest.json` → `dist/firefox/manifest.json` |
+| Manifest | `chrome/manifest.json` → `dist/chrome/manifest.json` | `firefox/manifest.json` → `dist/firefox/manifest.json` |
 | Add-on ID | N/A | `browser_specific_settings.gecko` |
 
 Both versions use the same shared `src/background.js` and `src/content.js` — the build system (Vite) handles copying the appropriate manifest and icons for each target.
@@ -369,6 +420,14 @@ MIT
 - Ensure aria2 is running with RPC enabled: `aria2c --enable-rpc`
 - Check the RPC URL in extension options (default: `http://localhost:6800/jsonrpc`)
 - Verify firewall settings allow connections to the RPC port
+
+### "Windows Script Host: can not find script file ... start-aria2-hidden.vbs" at login
+- The Startup shortcut exists but the hidden launcher script is missing — older
+  setups skipped writing it whenever aria2 was already running during setup
+- Re-run `windows\Setup.bat` — it now always (re)creates the launcher, re-points
+  the Startup shortcut, and removes stale aria2 startup entries from old installs
+- Quick check: `dir "%USERPROFILE%\aria2"` should list `aria2c.exe`, `aria2.conf`,
+  `aria2.session` and `start-aria2-hidden.vbs`
 
 ### Badge not updating
 - Badge shows the active download count and updates when the popup or full dashboard is open

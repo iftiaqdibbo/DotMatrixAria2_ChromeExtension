@@ -179,6 +179,11 @@ export class Aria2Options extends LitElement {
     await applyTheme(val);
   }
 
+  private async _selectThemeById(id: string) {
+    this._theme = id as ThemeId;
+    await applyTheme(id as ThemeId);
+  }
+
   private _openCreateTheme() {
     this._editingTheme = null;
     this._editingIndex = null;
@@ -433,7 +438,7 @@ export class Aria2Options extends LitElement {
               <h2 class="section-title"><span class="dot-indicator"></span>built-in themes</h2>
               <div class="themes-builtin-list">
                 ${this._builtInThemes.map(t => html`
-                  <div class="host-chip theme-chip">
+                  <div class="host-chip theme-chip${t.id === this._theme ? " theme-chip--active" : ""}" @click=${() => this._selectThemeById(t.id)}>
                     <span class="theme-chip-swatch" style="background:${t.accent};box-shadow:0 0 4px ${t.accent}66;"></span>
                     <span class="host-chip-name">${escapeHtml(t.name)}</span>
                   </div>
@@ -449,15 +454,15 @@ export class Aria2Options extends LitElement {
                 ${this._customThemes.length === 0
                   ? html`<div class="empty-hosts">no custom themes yet</div>`
                   : this._customThemes.map((t, i) => html`
-                    <div class="host-chip theme-chip">
+                    <div class="host-chip theme-chip${("custom:" + t.id) === this._theme ? " theme-chip--active" : ""}" @click=${() => this._selectThemeById("custom:" + t.id)}>
                       <span class="theme-chip-swatch" style="background:${escapeHtml(t.accent)};box-shadow:0 0 4px ${escapeHtml(t.accent)}66;"></span>
                       <span class="host-chip-name">${escapeHtml(t.name)}</span>
-                      <button class="host-chip-remove theme-chip-edit" @click=${() => this._openEditTheme(i)} title="Edit">
+                      <button class="host-chip-remove theme-chip-edit" @click=${(e: Event) => { e.stopPropagation(); this._openEditTheme(i); }} title="Edit">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
                         </svg>
                       </button>
-                      <button class="host-chip-remove theme-chip-delete" @click=${() => this._deleteCustomTheme(i)} title="Delete">
+                      <button class="host-chip-remove theme-chip-delete" @click=${(e: Event) => { e.stopPropagation(); this._deleteCustomTheme(i); }} title="Delete">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <polyline points="3 6 5 6 21 6"/>
                           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
